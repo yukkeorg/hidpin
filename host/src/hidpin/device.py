@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import random
 from dataclasses import dataclass
 from types import TracebackType
 
-from hidpin import protocol
+from hidpin import _hidraw, protocol
 from hidpin.protocol import (
     DeviceInfo,
     PinConfig,
@@ -43,13 +44,15 @@ class ProtocolVersionError(HidpinError):
 
 
 class PinConfigRejected(HidpinError):
-    def __init__(self, result: Result | int, gpio: int) -> None:
+    def __init__(self, result: Result | int, gpio: int, *, local: bool = False) -> None:
         message = protocol.RESULT_MESSAGES.get(result, f"result {int(result)}")
         if gpio != protocol.RESULT_GPIO_NONE:
             message = f"{message} (GPIO{gpio})"
-        super().__init__(f"デバイスがピン設定を拒否しました: {message}")
+        where = "ピン設定が不正です (デバイスには送っていません)" if local else "デバイスがピン設定を拒否しました"
+        super().__init__(f"{where}: {message}")
         self.result = result
         self.gpio = gpio
+        self.local = local
 
 
 class PinConfigConflict(HidpinError):
@@ -75,8 +78,27 @@ def _import_hid():
     try:
         import hid
     except ImportError as exc:  # pragma: no cover - depends on the host environment
-        raise HidpinError("hidapi が見つかりません。'pip install hidapi' を実行してください") from exc
+        raise HidpinError(
+            "hidapi が見つかりません。'pip install hidapi' を実行するか、Linux では hidraw を使ってください"
+        ) from exc
     return hid
+
+
+def _default_backend():
+    """Linux では hidraw を使い、それ以外では hidapi を使う。
+
+    HIDPIN_BACKEND=hidraw / hidapi で明示的に選べる。hidapi の PyPI ホイールは libusb
+    バックエンドで作られており、カーネルドライバを奪えないと開けないことがあるため、
+    Linux では hidraw を既定にしている。
+    """
+    choice = os.environ.get("HIDPIN_BACKEND", "auto").lower()
+    if choice not in ("auto", "hidraw", "hidapi"):
+        raise HidpinError(f"HIDPIN_BACKEND には hidraw か hidapi を指定してください: '{choice}'")
+    if choice in ("auto", "hidraw") and _hidraw.available():
+        return _hidraw
+    if choice == "hidraw":
+        raise HidpinError("hidraw が使えません (/sys/class/hidraw が見つかりません)")
+    return _import_hid()
 
 
 def _is_hidpin(item: dict) -> bool:
@@ -86,8 +108,8 @@ def _is_hidpin(item: dict) -> bool:
 
 
 def find_devices(backend=None) -> list[DeviceEntry]:
-    """Lists connected hidpin devices, newest hidapi field names."""
-    hid = backend or _import_hid()
+    """Lists connected hidpin devices."""
+    hid = backend or _default_backend()
     entries = []
     for item in hid.enumerate(VENDOR_ID, PRODUCT_ID):
         if not _is_hidpin(item):
@@ -121,7 +143,7 @@ class Device:
 
     @classmethod
     def open(cls, serial: str | None = None, *, path: bytes | None = None, backend=None) -> "Device":
-        hid = backend or _import_hid()
+        hid = backend or _default_backend()
         if path is None:
             entries = find_devices(backend=hid)
             if serial is not None:
@@ -134,7 +156,15 @@ class Device:
             path = entries[0].path
             serial = entries[0].serial
         handle = hid.device()
-        handle.open_path(path)
+        try:
+            handle.open_path(path)
+        except OSError as exc:
+            raise HidpinError(
+                f"デバイスを開けませんでした ({exc})。"
+                "権限が足りない場合は udev ルールを入れて、ボードを挿し直してください: "
+                "sudo cp udev/70-hidpin.rules /etc/udev/rules.d/ && "
+                "sudo udevadm control --reload-rules && sudo udevadm trigger"
+            ) from exc
         device = cls(handle, serial=serial or "")
         device.info  # verifies the protocol version before anything else
         return device
@@ -194,7 +224,7 @@ class Device:
         """Writes a pin configuration and verifies it was applied (PROTOCOL.md 6.3)."""
         result, gpio = protocol.validate_pin_config(config, self.info.available)
         if result != Result.OK:
-            raise PinConfigRejected(result, gpio)
+            raise PinConfigRejected(result, gpio, local=True)
 
         request_id = request_id if request_id is not None else self._next_request_id()
         self._send_feature(protocol.REPORT_ID_PIN_CONFIG, protocol.encode_pin_config_set(config, request_id))

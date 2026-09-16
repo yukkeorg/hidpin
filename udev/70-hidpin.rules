@@ -3,7 +3,14 @@
 # Install:
 #   sudo cp udev/70-hidpin.rules /etc/udev/rules.d/
 #   sudo udevadm control --reload-rules && sudo udevadm trigger
+#   (then unplug and replug the board)
+#
+# Two rules, because there are two ways to reach a HID device on Linux:
+#   - hidraw: opens /dev/hidrawN         -> first rule; this is what host/ uses
+#   - libusb: opens /dev/bus/usb/BBB/DDD -> second rule; used by the hidapi wheels
+#     on PyPI (HIDPIN_BACKEND=hidapi) and by other libusb-based tools.
 #
 # 1209:0001 is the pid.codes test PID, which other in-house test devices may also use.
 # Replace it with the allocated PID before distributing hardware.
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="0001", TAG+="uaccess", MODE="0660", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTR{idVendor}=="1209", ATTR{idProduct}=="0001", TAG+="uaccess", MODE="0660", GROUP="plugdev"
