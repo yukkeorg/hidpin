@@ -1,0 +1,9 @@
+# hidpin: allow the logged-in user to open the device without root.
+#
+# Install:
+#   sudo cp udev/70-hidpin.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# 1209:0001 is the pid.codes test PID, which other in-house test devices may also use.
+# Replace it with the allocated PID before distributing hardware.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="0001", TAG+="uaccess", MODE="0660", GROUP="plugdev"
