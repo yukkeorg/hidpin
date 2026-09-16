@@ -73,7 +73,9 @@ wheels = [
 name = "hidpin"
 version = "0.1.0"
 source = { editable = "." }
-dependencies = [
+
+[package.optional-dependencies]
+hidapi = [
     { name = "hidapi" },
 ]
 
@@ -83,7 +85,8 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "hidapi", specifier = ">=0.14" }]
+requires-dist = [{ name = "hidapi", marker = "extra == 'hidapi'", specifier = ">=0.14" }]
+provides-extras = ["hidapi"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8" }]

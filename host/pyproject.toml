@@ -5,7 +5,11 @@ description = "Host library and CLI for hidpin GPIO monitoring devices (RP2040)"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "yukke.org" }]
-dependencies = ["hidapi>=0.14"]
+# Linux は hidraw を直接使うので依存なし。他の OS では hidapi が要る。
+dependencies = []
+
+[project.optional-dependencies]
+hidapi = ["hidapi>=0.14"]
 
 [project.scripts]
 hidpin = "hidpin.cli:main"

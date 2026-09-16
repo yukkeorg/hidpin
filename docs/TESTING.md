@@ -17,6 +17,10 @@ PC 上のユニットテスト（`firmware/test`、`host/tests`）では確か�
   uv tool install ./host        # インストールせずに試すなら cd host && uv run hidpin ...
   ```
 
+  ルールを入れた後にボードを挿し直す。挿したままだと権限が変わらず、
+  `OSError: open failed` のままになる。Linux では hidraw を直接使うので、
+  hidapi のインストールは不要。
+
 配線は 3.3V 系。**RP2040 は 5V トレラントではない**ので、外部機器の信号を直接つながない。
 
 ## 1. 書き込み

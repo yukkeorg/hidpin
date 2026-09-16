@@ -47,6 +47,8 @@ sudo cp udev/70-hidpin.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
+ルールを入れたら、**ボードを挿し直す**。挿したままだと権限が変わらない。
+
 コマンドとして使うなら、次のどれかで入れる。
 
 ```
@@ -57,7 +59,13 @@ pip install ./host          # 今の Python 環境に入れる
 
 インストールせずに試すなら `cd host && uv run hidpin list` のように実行する。
 
-Python 3.11 以上。動作確認は Linux で行っている。Windows と macOS も hidapi 経由で動く見込みだが、未確認。
+Linux では `/dev/hidraw*` を直接使うので、追加のライブラリは要らない。
+Windows と macOS では hidapi が必要になる（`pip install './host[hidapi]'`）。
+`HIDPIN_BACKEND=hidraw` または `HIDPIN_BACKEND=hidapi` で明示的に選べる。
+hidapi の PyPI ホイールは libusb 版で、カーネルドライバを奪えないと
+`OSError: open failed` になることがあるため、Linux では hidraw を既定にしている。
+
+Python 3.11 以上。動作確認は Linux（hidraw）で行っている。Windows と macOS は hidapi 経由で動く見込みだが、未確認。
 
 ### 3. コマンドを使う
 
