@@ -14,15 +14,14 @@ USB の VID `0x1209`（pid.codes）配下に、このプロジェクト専用の
 申請前にもう一度、[1209 の一覧](https://github.com/pidcodes/pidcodes.github.com/tree/master/1209)と
 オープンな PR を確認する。
 
-## 申請の前にやること
+## 前提条件（達成済み）
 
-1. **リポジトリを公開する。** pid.codes は公開されたソースと OSS ライセンスを条件にしている。
-   このリポジトリは MIT ライセンスで `LICENSE` があるので、公開すれば条件を満たす。
-2. 下書きの `GITHUB_USER` を実際の GitHub ユーザー名に置き換える。
+pid.codes は「公開されたソース」と「OSS ライセンス」を条件にしている。
+このリポジトリは <https://github.com/yukkeorg/hidpin> で公開済みで、MIT ライセンスの
+`LICENSE` がある。下書きの `site` と `source` はこの URL を指している。
 
-   ```
-   grep -rl GITHUB_USER docs/pid-codes | xargs sed -i 's/GITHUB_USER/<ユーザー名>/g'
-   ```
+このプロジェクトをフォークして別の PID を取る場合は、`owner`・`site`・`source` を
+自分のものに書き換えること。
 
 ## 申請の手順
 

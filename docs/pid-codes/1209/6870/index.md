@@ -3,8 +3,8 @@ layout: pid
 title: hidpin
 owner: yukke.org
 license: MIT
-site: https://github.com/GITHUB_USER/hidpin
-source: https://github.com/GITHUB_USER/hidpin
+site: https://github.com/yukkeorg/hidpin
+source: https://github.com/yukkeorg/hidpin
 ---
 hidpin turns an RP2040 board (Raspberry Pi Pico, Adafruit QT Py RP2040) into a
 vendor-defined USB HID device that reports the state of its GPIO pins. The host
