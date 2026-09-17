@@ -73,12 +73,12 @@ class Result(IntEnum):
 
 
 RESULT_MESSAGES = {
-    Result.OK: "適用した",
-    Result.BAD_LENGTH: "ペイロード長が63バイトではない",
-    Result.BAD_MODE: "modeが0-4の範囲外",
-    Result.UNAVAILABLE_GPIO: "利用可能GPIOでないピンを使おうとした",
-    Result.UNUSED_WITH_PARAM: "使わないピンにparamが指定されている",
-    Result.BAD_OUTPUT_LEVEL: "出力ピンの初期出力レベルが0か1ではない",
+    Result.OK: "applied",
+    Result.BAD_LENGTH: "the payload is not 63 bytes long",
+    Result.BAD_MODE: "mode is outside 0-4",
+    Result.UNAVAILABLE_GPIO: "the pin is not an available GPIO",
+    Result.UNUSED_WITH_PARAM: "an unused pin was given a parameter",
+    Result.BAD_OUTPUT_LEVEL: "the initial output level is neither 0 nor 1",
 }
 
 
@@ -358,7 +358,7 @@ def decode_pin_config(payload: bytes) -> PinConfigReport:
         mode = payload[3 + 2 * gpio]
         param = payload[4 + 2 * gpio]
         if mode > PinMode.OUTPUT:
-            raise ValueError(f"GPIO{gpio} の mode {mode} は未定義です")
+            raise ValueError(f"mode {mode} of GPIO{gpio} is undefined")
         pins.append(PinSetting(PinMode(mode), param))
     try:
         result_value = Result(result)

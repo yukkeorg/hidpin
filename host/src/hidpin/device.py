@@ -26,7 +26,7 @@ USAGE = 0x01
 
 
 def usb_ids() -> tuple[int, int]:
-    """USB の VID と PID。独自の番号でビルドしたときは HIDPIN_VID / HIDPIN_PID で上書きする。"""
+    """The USB vendor and product id; override with HIDPIN_VID / HIDPIN_PID for your own build."""
     return _env_id("HIDPIN_VID", DEFAULT_VENDOR_ID), _env_id("HIDPIN_PID", DEFAULT_PRODUCT_ID)
 
 
@@ -37,9 +37,9 @@ def _env_id(name: str, default: int) -> int:
     try:
         value = int(raw, 0)
     except ValueError:
-        raise HidpinError(f"{name} が 16 bit の数値ではありません: '{raw}'") from None
+        raise HidpinError(f"{name} is not a 16-bit number: '{raw}'") from None
     if not 0 <= value <= 0xFFFF:
-        raise HidpinError(f"{name} が 16 bit の範囲外です: '{raw}'")
+        raise HidpinError(f"{name} is out of range for 16 bits: '{raw}'")
     return value
 
 REPORT_LEN = 1 + protocol.REPORT_PAYLOAD_LEN
@@ -66,7 +66,11 @@ class PinConfigRejected(HidpinError):
         message = protocol.RESULT_MESSAGES.get(result, f"result {int(result)}")
         if gpio != protocol.RESULT_GPIO_NONE:
             message = f"{message} (GPIO{gpio})"
-        where = "ピン設定が不正です (デバイスには送っていません)" if local else "デバイスがピン設定を拒否しました"
+        where = (
+            "the pin configuration is invalid (nothing was sent to the device)"
+            if local
+            else "the device rejected the pin configuration"
+        )
         super().__init__(f"{where}: {message}")
         self.result = result
         self.gpio = gpio
@@ -77,7 +81,10 @@ class PinConfigConflict(HidpinError):
     """Another process changed the pin configuration at the same time (PROTOCOL.md 6.3)."""
 
     def __init__(self, expected: int, seen: int) -> None:
-        super().__init__(f"別のプロセスがピン設定を変更しました (request_id {expected} を送り {seen} が返りました)")
+        super().__init__(
+            f"another process changed the pin configuration "
+            f"(sent request_id {expected}, read back {seen})"
+        )
         self.expected = expected
         self.seen = seen
 
@@ -97,25 +104,25 @@ def _import_hid():
         import hid
     except ImportError as exc:  # pragma: no cover - depends on the host environment
         raise HidpinError(
-            "hidapi が見つかりません。'pip install hidapi' を実行するか、Linux では hidraw を使ってください"
+            "hidapi is not installed. Run 'pip install hidapi', or use hidraw on Linux"
         ) from exc
     return hid
 
 
 def _default_backend():
-    """Linux では hidraw を使い、それ以外では hidapi を使う。
+    """Uses hidraw on Linux and hidapi elsewhere.
 
-    HIDPIN_BACKEND=hidraw / hidapi で明示的に選べる。hidapi の PyPI ホイールは libusb
-    バックエンドで作られており、カーネルドライバを奪えないと開けないことがあるため、
-    Linux では hidraw を既定にしている。
+    HIDPIN_BACKEND=hidraw / hidapi picks one explicitly. The hidapi wheels on PyPI are built
+    with the libusb backend, which cannot always take the interface from the kernel driver,
+    so hidraw is the default on Linux.
     """
     choice = os.environ.get("HIDPIN_BACKEND", "auto").lower()
     if choice not in ("auto", "hidraw", "hidapi"):
-        raise HidpinError(f"HIDPIN_BACKEND には hidraw か hidapi を指定してください: '{choice}'")
+        raise HidpinError(f"HIDPIN_BACKEND must be hidraw or hidapi: '{choice}'")
     if choice in ("auto", "hidraw") and _hidraw.available():
         return _hidraw
     if choice == "hidraw":
-        raise HidpinError("hidraw が使えません (/sys/class/hidraw が見つかりません)")
+        raise HidpinError("hidraw is not available (/sys/class/hidraw not found)")
     return _import_hid()
 
 
@@ -168,10 +175,14 @@ class Device:
             if serial is not None:
                 entries = [entry for entry in entries if entry.serial == serial]
             if not entries:
-                raise DeviceNotFound("hidpin デバイスが見つかりません" if serial is None else f"シリアル番号 {serial} のデバイスが見つかりません")
+                raise DeviceNotFound(
+                    "no hidpin device found"
+                    if serial is None
+                    else f"no hidpin device with serial number {serial}"
+                )
             if len(entries) > 1 and serial is None:
                 found = ", ".join(entry.serial for entry in entries)
-                raise DeviceNotFound(f"複数のデバイスが接続されています。--serial で指定してください: {found}")
+                raise DeviceNotFound(f"several devices are connected; pick one with --serial: {found}")
             path = entries[0].path
             serial = entries[0].serial
         handle = hid.device()
@@ -179,10 +190,9 @@ class Device:
             handle.open_path(path)
         except OSError as exc:
             raise HidpinError(
-                f"デバイスを開けませんでした ({exc})。"
-                "権限が足りない場合は udev ルールを入れて、ボードを挿し直してください: "
-                "sudo cp udev/70-hidpin.rules /etc/udev/rules.d/ && "
-                "sudo udevadm control --reload-rules && sudo udevadm trigger"
+                f"cannot open the device ({exc}). If this is a permissions problem, install the "
+                "udev rule and replug the board: sudo cp udev/70-hidpin.rules /etc/udev/rules.d/ "
+                "&& sudo udevadm control --reload-rules && sudo udevadm trigger"
             ) from exc
         device = cls(handle, serial=serial or "")
         device.info  # verifies the protocol version before anything else
@@ -202,9 +212,9 @@ class Device:
     def _get_feature(self, report_id: int) -> bytes:
         data = bytes(self._handle.get_feature_report(report_id, REPORT_LEN))
         if len(data) < REPORT_LEN:
-            raise HidpinError(f"Feature レポート {report_id} の長さが {len(data)} バイトしかありません")
+            raise HidpinError(f"feature report {report_id} is only {len(data)} bytes long")
         if data[0] != report_id:
-            raise HidpinError(f"Feature レポート {report_id} を要求しましたが {data[0]} が返りました")
+            raise HidpinError(f"asked for feature report {report_id} but got report {data[0]}")
         return data[1:REPORT_LEN]
 
     def _send_feature(self, report_id: int, payload: bytes) -> None:
@@ -254,7 +264,7 @@ class Device:
         if report.result != Result.OK:
             raise PinConfigRejected(report.result, report.result_gpio)
         if report.config != config:
-            raise HidpinError("デバイスが適用したピン設定が、送った内容と一致しません")
+            raise HidpinError("the configuration the device applied differs from the one that was sent")
         return report
 
     def update_pins(self, settings: dict[int, PinSetting]) -> PinConfigReport:
@@ -265,7 +275,7 @@ class Device:
         """Asks for the current state with Get_Report(Input) (PROTOCOL.md 4.6)."""
         data = bytes(self._handle.get_input_report(protocol.REPORT_ID_STATUS, REPORT_LEN))
         if len(data) < REPORT_LEN or data[0] != protocol.REPORT_ID_STATUS:
-            raise HidpinError("状態通知の取得に失敗しました")
+            raise HidpinError("could not read the status report")
         return protocol.decode_status(data[1:REPORT_LEN])
 
     def read_status(self, timeout_ms: int = 1000) -> StatusReport | None:
@@ -275,7 +285,7 @@ class Device:
             return None
         data = bytes(data)
         if data[0] != protocol.REPORT_ID_STATUS:
-            raise HidpinError(f"予期しないレポート ID {data[0]} を受け取りました")
+            raise HidpinError(f"received an unexpected report ID {data[0]}")
         report = protocol.decode_status(data[1:REPORT_LEN])
         self._track_seq(report)
         return report

@@ -95,7 +95,7 @@ hidpin config set 23=pullup:20   # Pico では利用可能GPIOではない
 ```
 
 - [ ] `config set 6=off` の後、`config get` の一覧から GPIO6 が消える
-- [ ] `watch` に `ピン設定が変更されました` が出る（`reason` に `CONFIG_CHANGED`）
+- [ ] `watch` に `the pin configuration changed` が出る（`reason` に `CONFIG_CHANGED`）
 - [ ] 利用可能GPIOでないピンを指定すると、エラーになり設定は変わらない
 - [ ] USB を抜き差しすると、ピン設定が既定（全ピン `pullup:20`）に戻る
 
@@ -118,7 +118,7 @@ hidpin output 7=low
 USB サスペンドの確認（PC をスリープさせるか、`/sys/bus/usb/devices/.../power/control` を使う）。
 
 - [ ] LED を点けた状態でサスペンドすると、**初期出力レベル（LOW）に戻って消える**
-- [ ] 復帰後の `watch` に `USB の切断かサスペンドにより…` が出る（`reason` に `OUTPUT_RESET`）
+- [ ] 復帰後の `watch` に `outputs returned to their initial level …` が出る（`reason` に `OUTPUT_RESET`）
 
 `OUTPUT_RESET` は再接続直後の最初の状態通知に立つ。`watch` を止めてから接続し直した場合は
 受け取れない（出力が初期出力レベルに戻っていることは `levels` で確認できる）。

@@ -23,19 +23,19 @@ def parse_pin_spec(text: str) -> tuple[int, PinSetting]:
     """Parses "5=pullup:20", "6=off" or "7=out:low"."""
     gpio_text, separator, setting_text = text.partition("=")
     if not separator:
-        raise argparse.ArgumentTypeError(f"'{text}' は GPIO=設定 の形式ではありません")
+        raise argparse.ArgumentTypeError(f"'{text}' is not of the form GPIO=SETTING")
     try:
         gpio = int(gpio_text, 0)
     except ValueError:
-        raise argparse.ArgumentTypeError(f"GPIO 番号が数値ではありません: '{gpio_text}'") from None
+        raise argparse.ArgumentTypeError(f"the GPIO number is not a number: '{gpio_text}'") from None
     if not 0 <= gpio < protocol.GPIO_COUNT:
-        raise argparse.ArgumentTypeError(f"GPIO{gpio} は範囲外です (0-{protocol.GPIO_COUNT - 1})")
+        raise argparse.ArgumentTypeError(f"GPIO{gpio} is out of range (0-{protocol.GPIO_COUNT - 1})")
 
     kind, _, param_text = setting_text.partition(":")
     kind = kind.lower()
     if kind in ("off", "unused"):
         if param_text:
-            raise argparse.ArgumentTypeError(f"'{text}': off に値は指定できません")
+            raise argparse.ArgumentTypeError(f"'{text}': off takes no value")
         return gpio, PinSetting.unused()
     if kind in INPUT_MODES:
         debounce = protocol.DEFAULT_DEBOUNCE_MS
@@ -43,17 +43,17 @@ def parse_pin_spec(text: str) -> tuple[int, PinSetting]:
             try:
                 debounce = int(param_text, 0)
             except ValueError:
-                raise argparse.ArgumentTypeError(f"'{text}': チャタリング除去時間が数値ではありません") from None
+                raise argparse.ArgumentTypeError(f"'{text}': the debounce time is not a number") from None
         if not 0 <= debounce <= 255:
-            raise argparse.ArgumentTypeError(f"'{text}': チャタリング除去時間は 0-255 ms です")
+            raise argparse.ArgumentTypeError(f"'{text}': the debounce time must be 0-255 ms")
         return gpio, PinSetting.monitor(INPUT_MODES[kind], debounce)
     if kind == "out":
         level = LEVEL_WORDS.get(param_text.lower())
         if level is None:
-            raise argparse.ArgumentTypeError(f"'{text}': 出力は out:high または out:low です")
+            raise argparse.ArgumentTypeError(f"'{text}': an output is out:high or out:low")
         return gpio, PinSetting.output(level)
     raise argparse.ArgumentTypeError(
-        f"'{text}': 設定は off, nopull, pullup, pulldown, out のいずれかです"
+        f"'{text}': the setting must be one of off, nopull, pullup, pulldown, out"
     )
 
 
@@ -61,14 +61,14 @@ def parse_output_spec(text: str) -> tuple[int, bool]:
     """Parses "7=high" or "7=0"."""
     gpio_text, separator, level_text = text.partition("=")
     if not separator:
-        raise argparse.ArgumentTypeError(f"'{text}' は GPIO=値 の形式ではありません")
+        raise argparse.ArgumentTypeError(f"'{text}' is not of the form GPIO=VALUE")
     try:
         gpio = int(gpio_text, 0)
     except ValueError:
-        raise argparse.ArgumentTypeError(f"GPIO 番号が数値ではありません: '{gpio_text}'") from None
+        raise argparse.ArgumentTypeError(f"the GPIO number is not a number: '{gpio_text}'") from None
     level = LEVEL_WORDS.get(level_text.lower())
     if level is None:
-        raise argparse.ArgumentTypeError(f"'{text}': 値は high/low または 1/0 です")
+        raise argparse.ArgumentTypeError(f"'{text}': the value must be high/low or 1/0")
     return gpio, level
 
 
@@ -90,7 +90,7 @@ def cmd_list(args) -> int:
         print(json.dumps([{"serial": e.serial, "manufacturer": e.manufacturer, "product": e.product} for e in entries]))
         return 0
     if not entries:
-        print("hidpin デバイスは見つかりませんでした")
+        print("no hidpin device found")
         return 0
     for entry in entries:
         print(f"{entry.serial}  {entry.manufacturer} {entry.product}")
@@ -118,13 +118,13 @@ def cmd_info(args) -> int:
                 )
             )
             return 0
-        print(f"シリアル番号       : {device.serial}")
-        print(f"ボード             : {info.board_name}")
-        print(f"ファームウェア     : {info.firmware_version}")
-        print(f"プロトコル版       : {info.protocol_version}")
-        print(f"利用可能GPIO       : {len(info.available_gpios)} 本 {info.available_gpios}")
-        print(f"定期通知の間隔     : {info.periodic_interval_ms} ms")
-        print(f"1通あたりのイベント: {info.events_per_report} 個 (待ち行列 {info.event_queue_size} 個)")
+        print(f"serial number     : {device.serial}")
+        print(f"board             : {info.board_name}")
+        print(f"firmware          : {info.firmware_version}")
+        print(f"protocol version  : {info.protocol_version}")
+        print(f"available GPIOs   : {len(info.available_gpios)} pins {info.available_gpios}")
+        print(f"periodic interval : {info.periodic_interval_ms} ms")
+        print(f"events per report : {info.events_per_report} (queue of {info.event_queue_size})")
     return 0
 
 
@@ -144,7 +144,8 @@ def cmd_config_get(args) -> int:
                 )
             )
             return 0
-        print(f"直前の設定結果: {int(report.result)} ({protocol.RESULT_MESSAGES.get(report.result, '不明')})")
+        message = protocol.RESULT_MESSAGES.get(report.result, "unknown")
+        print(f"result of the last write: {int(report.result)} ({message})")
         for gpio in available:
             print(f"  GPIO{gpio:<2} {report.config[gpio]}")
     return 0
@@ -158,7 +159,7 @@ def cmd_config_set(args) -> int:
             print(json.dumps({"request_id": report.request_id, "pins": {str(g): str(s) for g, s in settings.items()}}))
             return 0
         for gpio, setting in sorted(settings.items()):
-            print(f"GPIO{gpio} を {setting} にしました")
+            print(f"GPIO{gpio} is now {setting}")
     return 0
 
 
@@ -169,7 +170,7 @@ def cmd_output(args) -> int:
         unknown = [gpio for gpio in levels if not outputs >> gpio & 1]
         if unknown:
             names = ", ".join(f"GPIO{gpio}" for gpio in unknown)
-            print(f"警告: {names} は出力ピンではないため無視されます", file=sys.stderr)
+            print(f"warning: {names} is not an output pin and will be ignored", file=sys.stderr)
         device.set_outputs(levels)
         report = device.request_status()
         if args.json:
@@ -239,15 +240,16 @@ def cmd_watch(args) -> int:
                 print(report_json(device, report, config), flush=True)
             else:
                 if device.missed_reports != missed:
-                    print(f"警告: 状態通知を {device.missed_reports - missed} 回読み落としました", file=sys.stderr)
+                    lost = device.missed_reports - missed
+                    print(f"warning: missed {lost} status report(s)", file=sys.stderr)
                     missed = device.missed_reports
                 if report.flags & StatusFlags.OVERFLOW:
-                    print("警告: デバイスがエッジイベントを捨てました (履歴が欠けています)", file=sys.stderr)
+                    print("warning: the device dropped edge events (the history is incomplete)", file=sys.stderr)
                 if report.reason & Reason.CONFIG_CHANGED:
                     config = device.get_pin_config().config
-                    print("ピン設定が変更されました", flush=True)
+                    print("the pin configuration changed", flush=True)
                 if report.reason & Reason.OUTPUT_RESET:
-                    print("USB の切断かサスペンドにより、出力ピンが初期出力レベルに戻りました", flush=True)
+                    print("outputs returned to their initial level (USB disconnect or suspend)", flush=True)
                 print_events(device, report, config)
                 if args.all and not report.events:
                     print(f"seq={report.seq} reason={','.join(flag_names(report.reason))}", flush=True)
@@ -255,42 +257,42 @@ def cmd_watch(args) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="hidpin", description="hidpin デバイスの監視と設定")
-    parser.add_argument("--json", action="store_true", help="結果を JSON で出力する")
+    parser = argparse.ArgumentParser(prog="hidpin", description="watch and configure a hidpin device")
+    parser.add_argument("--json", action="store_true", help="print the result as JSON")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     def with_serial(sub: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        sub.add_argument("--serial", help="対象デバイスのシリアル番号 (1台のみなら省略可)")
+        sub.add_argument("--serial", help="serial number of the device (optional when only one is connected)")
         return sub
 
-    listing = subparsers.add_parser("list", help="接続されているデバイスの一覧")
+    listing = subparsers.add_parser("list", help="list the connected devices")
     listing.set_defaults(func=cmd_list)
 
-    info = with_serial(subparsers.add_parser("info", help="デバイス情報を表示する"))
+    info = with_serial(subparsers.add_parser("info", help="show the device information"))
     info.set_defaults(func=cmd_info)
 
-    watch = with_serial(subparsers.add_parser("watch", help="状態通知を表示し続ける"))
-    watch.add_argument("--active-low", help="LOW を ON とみなす GPIO (カンマ区切り)")
-    watch.add_argument("--active-high", help="HIGH を ON とみなす GPIO (カンマ区切り)")
-    watch.add_argument("--all", action="store_true", help="イベントのない状態通知も表示する")
+    watch = with_serial(subparsers.add_parser("watch", help="keep printing status reports"))
+    watch.add_argument("--active-low", help="GPIOs where LOW means ON (comma separated)")
+    watch.add_argument("--active-high", help="GPIOs where HIGH means ON (comma separated)")
+    watch.add_argument("--all", action="store_true", help="also print reports that carry no events")
     watch.set_defaults(func=cmd_watch)
 
-    config = subparsers.add_parser("config", help="ピン設定の読み書き")
+    config = subparsers.add_parser("config", help="read or write the pin configuration")
     config_sub = config.add_subparsers(dest="config_command", required=True)
-    config_get = with_serial(config_sub.add_parser("get", help="現在のピン設定を表示する"))
+    config_get = with_serial(config_sub.add_parser("get", help="show the current pin configuration"))
     config_get.set_defaults(func=cmd_config_get)
-    config_set = with_serial(config_sub.add_parser("set", help="ピン設定を変更する"))
+    config_set = with_serial(config_sub.add_parser("set", help="change the pin configuration"))
     config_set.add_argument(
         "pins",
         nargs="+",
         type=parse_pin_spec,
-        metavar="GPIO=設定",
-        help="例: 5=pullup:20 6=off 7=out:low (指定しない GPIO は現在の設定のまま)",
+        metavar="GPIO=SETTING",
+        help="for example: 5=pullup:20 6=off 7=out:low (pins not named keep their setting)",
     )
     config_set.set_defaults(func=cmd_config_set)
 
-    output = with_serial(subparsers.add_parser("output", help="出力ピンの値を変える"))
-    output.add_argument("pins", nargs="+", type=parse_output_spec, metavar="GPIO=値", help="例: 7=high 8=0")
+    output = with_serial(subparsers.add_parser("output", help="change the value of output pins"))
+    output.add_argument("pins", nargs="+", type=parse_output_spec, metavar="GPIO=VALUE", help="for example: 7=high 8=0")
     output.set_defaults(func=cmd_output)
 
     return parser
@@ -304,7 +306,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         return 0
     except HidpinError as error:
-        print(f"エラー: {error}", file=sys.stderr)
+        print(f"error: {error}", file=sys.stderr)
         return 1
 
 
