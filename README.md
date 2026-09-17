@@ -1,97 +1,111 @@
 # hidpin
 
-RP2040 マイコンボードの GPIO を監視し、その状態を USB-HID でコンピュータに伝える仕組み。
-ボードは**ベンダー定義の HID デバイス**として認識されるので、OS 標準のドライバだけで動く。
-キーボードやマウスのふりはしないため、ホスト側のアプリから全ピンの状態をそのまま読める。
+**English** | [日本語](README.ja.md)
 
-対応ボード（for RP2040 boards）:
+hidpin watches the GPIO pins of an RP2040 board and reports their state to a computer over
+USB-HID. The board appears as a **vendor-defined HID device**, so it runs on the drivers the
+operating system already ships. It does not pretend to be a keyboard or a mouse, which is why
+an application on the host can read the state of every pin as it is.
 
-| ボード | 利用可能GPIO | 状態 LED |
+Supported boards:
+
+| Board | Available GPIOs | Status LED |
 |---|---|---|
-| Raspberry Pi Pico | 26 本（GPIO0–22, 26–28） | 本体の LED（GPIO25） |
-| Adafruit QT Py RP2040 | 13 本（GPIO3–6, 20, 22–29） | NeoPixel（GPIO12） |
+| Raspberry Pi Pico | 26 (GPIO0–22, 26–28) | on-board LED (GPIO25) |
+| Adafruit QT Py RP2040 | 13 (GPIO3–6, 20, 22–29) | NeoPixel (GPIO12) |
 
-> **現在の状態**: PC 上のテスト（ファームウェアのコア 32 件、ホスト 50 件）に加えて、
-> **Adafruit QT Py RP2040 の実機で動作を確認済み**（2026-09-17）。
-> 認識、監視とエッジイベント、チャタリング除去、ピン設定、出力、バスリセット時の復帰まで確認した。
-> Raspberry Pi Pico は未確認。手順は [docs/TESTING.md](docs/TESTING.md) にある。
+> **Status**: the tests on a PC pass (32 for the firmware core, 56 for the host), and the
+> software has been **verified on a real Adafruit QT Py RP2040** (2026-09-17): enumeration,
+> monitoring and edge events, debouncing, pin configuration, outputs, and the recovery after a
+> bus reset. The Raspberry Pi Pico has not been tried yet. The procedure is in
+> [docs/TESTING.md](docs/TESTING.md).
 
-## できること
+Most documents in this repository are written in Japanese; the protocol specification
+([docs/PROTOCOL.md](docs/PROTOCOL.md)) is the authority on the wire format.
 
-- 監視ピンの**ピンレベル**（HIGH/LOW）を、変化したとき・1 秒ごと・ホストが要求したときに受け取る
-- **エッジイベント**（いつ変化したか）を μs の時刻つきで受け取る。1 通に最大 7 個
-- ピンごとの設定：監視するか、プルアップ／プルダウン、チャタリング除去時間（0–255 ms）、出力
-- 出力ピンの駆動。USB の切断・サスペンド時には安全側（初期出力レベル）に戻る
-- 複数台の同時接続。USB シリアル番号（ボード固有 ID）で区別する
+## What it does
 
-できないこと: アナログ入力（ADC）、I2C や SPI のブリッジ、キーボードとしての入力。
+- Reports the **pin level** (HIGH/LOW) of monitored pins when it changes, once per second, and
+  whenever the host asks for it
+- Reports **edge events** (when a change began) with microsecond timestamps, up to 7 per report
+- Per-pin configuration: monitored or not, pull-up/pull-down, debounce time (0–255 ms), output
+- Drives output pins, returning them to a safe value (their initial output level) when USB is
+  disconnected or suspended
+- Several boards at once, told apart by their USB serial number (the board's unique ID)
 
-## 使い方
+Out of scope: analogue inputs (ADC), I2C or SPI bridging, acting as a keyboard.
 
-### 1. ファームウェアを書き込む
+## Getting started
 
-必要なもの: CMake 3.20 以上、Ninja、`arm-none-eabi-gcc`。
-Pico SDK は `PICO_SDK_PATH` があればそれを使い、なければ 2.3.1 を自動で取得する。
+### 1. Flash the firmware
+
+You need CMake 3.20 or newer, Ninja and `arm-none-eabi-gcc`. The Pico SDK is taken from
+`PICO_SDK_PATH` when it is set, and otherwise fetched (release 2.3.1) during configuration.
 
 ```
-cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico   # QT Py は adafruit_qtpy_rp2040
+cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico   # QT Py: adafruit_qtpy_rp2040
 cmake --build build/pico
 ```
 
-BOOTSEL ボタンを押しながら USB をつなぎ、現れたドライブに `build/pico/hidpin.uf2` をコピーする。
+Hold BOOTSEL while plugging in the board, then copy `build/pico/hidpin.uf2` onto the drive that
+appears.
 
-デバッグ用に USB シリアル（CDC）でログを出すビルドは `-DHIDPIN_DEBUG=ON` を付ける。
+Add `-DHIDPIN_DEBUG=ON` for a build that also exposes a USB serial (CDC) interface carrying
+debug logs.
 
-### 2. ホスト側を用意する（Linux）
+### 2. Set up the host (Linux)
 
 ```
 sudo cp udev/70-hidpin.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-ルールを入れたら、**ボードを挿し直す**。挿したままだと権限が変わらない。
+**Replug the board** afterwards; the permissions of an already-created device node do not change.
 
-コマンドとして使うなら、次のどれかで入れる。
-
-```
-uv tool install ./host      # hidpin コマンドがどこからでも使える
-pipx install ./host         # 同上
-pip install ./host          # 今の Python 環境に入れる
-```
-
-インストールせずに試すなら `cd host && uv run hidpin list` のように実行する。
-
-Linux では `/dev/hidraw*` を直接使うので、追加のライブラリは要らない。
-Windows と macOS では hidapi が必要になる（`pip install './host[hidapi]'`）。
-`HIDPIN_BACKEND=hidraw` または `HIDPIN_BACKEND=hidapi` で明示的に選べる。
-hidapi の PyPI ホイールは libusb 版で、カーネルドライバを奪えないと
-`OSError: open failed` になることがあるため、Linux では hidraw を既定にしている。
-
-Python 3.11 以上。動作確認は Linux（hidraw）で行っている。Windows と macOS は hidapi 経由で動く見込みだが、未確認。
-
-### 3. コマンドを使う
+To get the command itself, use any of:
 
 ```
-hidpin list                             # つながっているデバイス（シリアル番号つき）
-hidpin info                             # ボード、ファームウェア版、利用可能GPIO
-hidpin watch                            # 状態通知を表示し続ける
-hidpin config get                       # 現在のピン設定
-hidpin config set 5=pullup:20 6=off     # 指定したピンだけ変更
-hidpin config set 7=out:low             # 出力ピンにする（初期出力レベルは LOW）
-hidpin output 7=high                    # 出力の値を変える
+uv tool install ./host      # hidpin available everywhere
+pipx install ./host         # the same
+pip install ./host          # into the current Python environment
 ```
 
-どのコマンドも `--json` で機械可読な出力になり、複数台つながっているときは `--serial` で選ぶ。
+To try it without installing, run `cd host && uv run hidpin list`.
 
-スイッチは GND につなぎ、プルアップで使う想定。押すと LOW になるので、ホスト側は既定で
-「LOW = ON」と解釈する。`hidpin watch --active-high 7` のように、ピンごとに変更できる。
+On Linux the library talks to `/dev/hidraw*` directly, so no extra library is needed. Windows
+and macOS need hidapi (`pip install './host[hidapi]'`). `HIDPIN_BACKEND=hidraw` or
+`HIDPIN_BACKEND=hidapi` picks one explicitly. The hidapi wheels on PyPI are built with the
+libusb backend, which fails with `OSError: open failed` when it cannot take the interface from
+the kernel driver — hence hidraw being the default on Linux.
 
-### 4. ライブラリとして使う
+Python 3.11 or newer. Tested on Linux (hidraw); Windows and macOS should work through hidapi,
+but have not been tried.
+
+### 3. Use the command
+
+```
+hidpin list                             # connected devices, with their serial numbers
+hidpin info                             # board, firmware version, available GPIOs
+hidpin watch                            # keep printing status reports
+hidpin config get                       # the current pin configuration
+hidpin config set 5=pullup:20 6=off     # change only the pins named
+hidpin config set 7=out:low             # make it an output (initial output level LOW)
+hidpin output 7=high                    # change the value of an output
+```
+
+Every command takes `--json` for machine-readable output, and `--serial` to pick one of several
+connected boards.
+
+Switches are meant to be wired to GND and used with a pull-up. Pressing one pulls the pin LOW,
+so the host reads "LOW = ON" by default. Change it per pin with, for example,
+`hidpin watch --active-high 7`.
+
+### 4. Use it as a library
 
 ```python
 from hidpin import Device, PinMode, PinSetting
 
-with Device.open() as device:                      # 複数台あるときは Device.open("シリアル番号")
+with Device.open() as device:                      # Device.open("SERIAL") picks one of several
     device.update_pins({5: PinSetting.monitor(PinMode.PULLUP, 20)})
     print(device.info.board_name, device.info.available_gpios)
 
@@ -104,62 +118,67 @@ with Device.open() as device:                      # 複数台あるときは De
         print(device.on_off(report))                # {5: True, 6: False, ...}
 ```
 
-## リポジトリの構成
+## Repository layout
 
 ```
-CONTEXT.md            用語集（デバイス、監視ピン、ピンレベル、状態通知、エッジイベント…）
-docs/CONCEPT.md       最初の構想
-docs/PROTOCOL.md      USB-HID プロトコル版 1 の仕様（正）
-docs/TESTING.md       実機での確認手順
-docs/adr/             設計判断の記録
-protocol/vectors.json C と Python の両方のテストが参照するテストデータ
-firmware/core/        SDK に依存しないコア（レポート、チャタリング除去、イベント、エンジン）
-firmware/app/         Pico SDK + TinyUSB のファームウェア
-firmware/test/        コアのユニットテスト（PC 上で実行）
-host/                 Python ライブラリと CLI
-udev/                 Linux の udev ルール
+CONTEXT.md            glossary (device, monitored pin, pin level, status report, edge event…)
+docs/CONCEPT.md       the original concept
+docs/PROTOCOL.md      the USB-HID protocol version 1 (the authority)
+docs/TESTING.md       what to check on real hardware
+docs/adr/             records of design decisions
+docs/pid-codes/       the pid.codes registration for the USB product ID
+protocol/vectors.json test data both the C and the Python tests read
+firmware/core/        the core, free of SDK dependencies (reports, debouncing, events, engine)
+firmware/app/         the firmware built on the Pico SDK and TinyUSB
+firmware/test/        unit tests for the core, run on a PC
+host/                 the Python library and CLI
+udev/                 the Linux udev rule
 ```
 
-プロトコルを変えるときは、`docs/PROTOCOL.md` を直し、`protocol/vectors.json` を更新し、
-C と Python の両方の実装を合わせる。仕様書が正で、テストデータはそこから導く。
+To change the protocol, edit `docs/PROTOCOL.md`, update `protocol/vectors.json`, then bring both
+implementations in line. The specification is the authority and the test data follows from it.
 
-## 開発
+## Development
 
 ```
-# ファームウェアのコアのテスト（Pico SDK は不要）
+# tests for the firmware core (no Pico SDK required)
 cmake -S firmware/test -B build/core-tests -G Ninja
 cmake --build build/core-tests && ctest --test-dir build/core-tests
 
-# ホスト側のテスト
+# tests for the host side
 cd host && uv run --group dev pytest
 ```
 
-## USB の識別番号について
+## About the USB identifiers
 
-既定値は pid.codes のテスト用 PID **1209:0001**。これは**社内でのテスト専用**で、
-再配布・販売・製造する機器には使えない。配布するなら [pid.codes](https://pid.codes/howto/) で
-正式な PID を取得する（公開リポジトリと OSS ライセンスがあれば無償）。
+The default is the pid.codes test PID **1209:0001**, which is **for in-house testing only** and
+must not be used on a device that is redistributed, sold or manufactured. Get your own PID from
+[pid.codes](https://pid.codes/howto/) — free if the source is public under an open source
+licence.
 
-取得した番号でのビルドと接続:
+Building and connecting with an allocated number:
 
 ```
 cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico -DHIDPIN_USB_PID=0x1234
 cmake --build build/pico
 
-HIDPIN_PID=0x1234 hidpin list        # ホスト側は環境変数で合わせる
+HIDPIN_PID=0x1234 hidpin list        # tell the host side the same number
 ```
 
-`HIDPIN_USB_VID` / `HIDPIN_USB_PID` がファームウェア側、`HIDPIN_VID` / `HIDPIN_PID` が
-ホスト側の指定。udev ルール（`udev/70-hidpin.rules`）の `idProduct` は手で書き換える。
+`HIDPIN_USB_VID` / `HIDPIN_USB_PID` are the firmware side, `HIDPIN_VID` / `HIDPIN_PID` the host
+side. The `idProduct` in the udev rule (`udev/70-hidpin.rules`) has to be edited by hand.
 
-## ライセンス
+## Licence
 
-MIT License（[LICENSE](LICENSE)）。
+MIT License ([LICENSE](LICENSE)).
 
-含まれるサードパーティのコード:
+Third-party code included here:
 
-- `firmware/app/ws2812.pio` — pico-examples より。Copyright (c) 2020 Raspberry Pi (Trading) Ltd.、BSD-3-Clause
-- `firmware/pico_sdk_import.cmake` — Pico SDK より。Copyright (c) 2020 Raspberry Pi (Trading) Ltd.、BSD-3-Clause
+- `firmware/app/ws2812.pio` — from pico-examples. Copyright (c) 2020 Raspberry Pi (Trading) Ltd.,
+  BSD-3-Clause
+- `firmware/pico_sdk_import.cmake` — from the Pico SDK. Copyright (c) 2020 Raspberry Pi (Trading)
+  Ltd., BSD-3-Clause
 
-ビルド時に取得する Pico SDK（BSD-3-Clause）、TinyUSB（MIT）、実行時に使う hidapi
-（BSD-3-Clause / GPL-3.0 / 独自ライセンスから選択）は、それぞれの配布元のライセンスに従う。
+The Pico SDK (BSD-3-Clause) and TinyUSB (MIT) fetched at build time, and hidapi (BSD-3-Clause /
+GPL-3.0 / its own licence, at your choice) used at run time, stay under the licences of their
+own distributions.
