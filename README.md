@@ -11,8 +11,10 @@ RP2040 マイコンボードの GPIO を監視し、その状態を USB-HID で�
 | Raspberry Pi Pico | 26 本（GPIO0–22, 26–28） | 本体の LED（GPIO25） |
 | Adafruit QT Py RP2040 | 13 本（GPIO3–6, 20, 22–29） | NeoPixel（GPIO12） |
 
-> **現在の状態**: ソフトウェアは PC 上のテスト（ファームウェアのコア 32 件、ホスト 44 件）を通っているが、
-> **実機での確認はこれから**。手順は [docs/TESTING.md](docs/TESTING.md) にある。
+> **現在の状態**: PC 上のテスト（ファームウェアのコア 32 件、ホスト 50 件）に加えて、
+> **Adafruit QT Py RP2040 の実機で動作を確認済み**（2026-09-17）。
+> 認識、監視とエッジイベント、チャタリング除去、ピン設定、出力、バスリセット時の復帰まで確認した。
+> Raspberry Pi Pico は未確認。手順は [docs/TESTING.md](docs/TESTING.md) にある。
 
 ## できること
 
