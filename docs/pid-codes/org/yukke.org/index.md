@@ -1,6 +1,6 @@
 ---
 layout: org
 title: yukke.org
-site: https://github.com/GITHUB_USER
+site: https://github.com/yukkeorg
 ---
 Open source tools and firmware for microcontroller boards.
