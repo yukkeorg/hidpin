@@ -76,7 +76,7 @@ def test_applied_config_must_match():
         return result
 
     handle.send_feature_report = drop_one_pin
-    with pytest.raises(HidpinError, match="一致しません"):
+    with pytest.raises(HidpinError, match="differs"):
         device.update_pins({5: PinSetting.unused()})
 
 

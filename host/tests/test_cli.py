@@ -50,7 +50,7 @@ def test_info_command(fake_device, capsys):
     assert cli.main(["info"]) == 0
     out = capsys.readouterr().out
     assert "Raspberry Pi Pico" in out
-    assert "26 本" in out
+    assert "26 pins" in out
 
 
 def test_info_command_json(fake_device, capsys):
@@ -68,7 +68,7 @@ def test_config_set_command(fake_device, capsys):
     assert cli.main(["config", "set", "5=pulldown:5", "7=out:high"]) == 0
     assert handle.config[5] == PinSetting(PinMode.PULLDOWN, 5)
     assert handle.config[7] == PinSetting(PinMode.OUTPUT, 1)
-    assert "GPIO5 を pulldown:5 にしました" in capsys.readouterr().out
+    assert "GPIO5 is now pulldown:5" in capsys.readouterr().out
 
 
 def test_config_set_rejects_unavailable_gpio(fake_device, capsys):
@@ -90,7 +90,7 @@ def test_output_command_warns_about_non_output_pins(fake_device, capsys):
 
     assert cli.main(["output", "7=high", "8=high"]) == 0
     captured = capsys.readouterr()
-    assert "GPIO8 は出力ピンではない" in captured.err
+    assert "GPIO8 is not an output pin" in captured.err
     mask, value = protocol.decode_output(handle.output_writes[-1][1:])
     assert mask == (1 << 7) | (1 << 8)
     assert value == mask
