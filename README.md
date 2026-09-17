@@ -136,9 +136,21 @@ cd host && uv run --group dev pytest
 
 ## USB の識別番号について
 
-開発中は pid.codes のテスト用 PID **1209:0001** を使っている。これは**社内でのテスト専用**で、
-再配布・販売・製造する機器には使えない。公開する前に、pid.codes で正式な PID を取得して
-`firmware/app/usb_descriptors.c` と `udev/70-hidpin.rules` を書き換えること。
+既定値は pid.codes のテスト用 PID **1209:0001**。これは**社内でのテスト専用**で、
+再配布・販売・製造する機器には使えない。配布するなら [pid.codes](https://pid.codes/howto/) で
+正式な PID を取得する（公開リポジトリと OSS ライセンスがあれば無償）。
+
+取得した番号でのビルドと接続:
+
+```
+cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico -DHIDPIN_USB_PID=0x1234
+cmake --build build/pico
+
+HIDPIN_PID=0x1234 hidpin list        # ホスト側は環境変数で合わせる
+```
+
+`HIDPIN_USB_VID` / `HIDPIN_USB_PID` がファームウェア側、`HIDPIN_VID` / `HIDPIN_PID` が
+ホスト側の指定。udev ルール（`udev/70-hidpin.rules`）の `idProduct` は手で書き換える。
 
 ## ライセンス
 

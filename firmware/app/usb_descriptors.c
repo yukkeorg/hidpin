@@ -5,9 +5,14 @@
 
 #include "hidpin/protocol.h"
 
-// pid.codes test PID: valid for in-house testing only. Replace with an allocated PID before redistribution.
-#define USB_VID 0x1209
-#define USB_PID 0x0001
+// Set with -DHIDPIN_USB_VID / -DHIDPIN_USB_PID at configure time. The defaults are the
+// pid.codes test PID, which is valid for in-house testing only, never for redistribution.
+#ifndef HIDPIN_USB_VID
+#define HIDPIN_USB_VID 0x1209
+#endif
+#ifndef HIDPIN_USB_PID
+#define HIDPIN_USB_PID 0x0001
+#endif
 #define USB_BCD_DEVICE ((HIDPIN_FW_MAJOR << 8) | (HIDPIN_FW_MINOR << 4) | HIDPIN_FW_PATCH)
 
 enum {
@@ -49,8 +54,8 @@ static const tusb_desc_device_t desc_device = {
     .bDeviceProtocol = 0x00,
 #endif
     .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
-    .idVendor = USB_VID,
-    .idProduct = USB_PID,
+    .idVendor = HIDPIN_USB_VID,
+    .idProduct = HIDPIN_USB_PID,
     .bcdDevice = USB_BCD_DEVICE,
     .iManufacturer = STRID_MANUFACTURER,
     .iProduct = STRID_PRODUCT,
