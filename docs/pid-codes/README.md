@@ -43,6 +43,6 @@ cmake --build build/pico        # 書き込み直す
 - `firmware/CMakeLists.txt` の `HIDPIN_USB_PID` の既定値
 - `host/src/hidpin/device.py` の `DEFAULT_PRODUCT_ID`
 - `udev/70-hidpin.rules` の `idProduct`（2 行）
-- `docs/PROTOCOL.md` §1、`docs/TESTING.md`、`README.md` の表記
+- `docs/PROTOCOL.md` §1、`docs/TESTING.md`、`README.md`、`README.ja.md` の表記
 
 書き換えたら、ファームウェアを書き込み直し、udev ルールを入れ直してボードを挿し直す。
