@@ -21,6 +21,16 @@ project(hidpin_firmware VERSION 0.1.0 LANGUAGES C CXX ASM)
 
 option(HIDPIN_DEBUG "Add a USB CDC interface that carries debug logs" OFF)
 
+# USB identifiers. The defaults are the pid.codes test PID, which is for in-house
+# testing only; pass your allocated ids when you distribute a board.
+set(HIDPIN_USB_VID "0x1209" CACHE STRING "USB Vendor ID")
+set(HIDPIN_USB_PID "0x0001" CACHE STRING "USB Product ID")
+if(HIDPIN_USB_VID STREQUAL "0x1209" AND HIDPIN_USB_PID STREQUAL "0x0001")
+    message(STATUS "hidpin: USB ${HIDPIN_USB_VID}:${HIDPIN_USB_PID} (pid.codes test PID; in-house testing only)")
+else()
+    message(STATUS "hidpin: USB ${HIDPIN_USB_VID}:${HIDPIN_USB_PID}")
+endif()
+
 pico_sdk_init()
 
 add_subdirectory(core)
@@ -38,6 +48,8 @@ set_source_files_properties(${HIDPIN_APP_SOURCES} PROPERTIES COMPILE_OPTIONS "-W
 add_executable(hidpin ${HIDPIN_APP_SOURCES})
 target_include_directories(hidpin PRIVATE app)
 target_compile_definitions(hidpin PRIVATE
+    HIDPIN_USB_VID=${HIDPIN_USB_VID}
+    HIDPIN_USB_PID=${HIDPIN_USB_PID}
     HIDPIN_FW_MAJOR=${PROJECT_VERSION_MAJOR}
     HIDPIN_FW_MINOR=${PROJECT_VERSION_MINOR}
     HIDPIN_FW_PATCH=${PROJECT_VERSION_PATCH}

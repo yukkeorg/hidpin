@@ -19,10 +19,28 @@ from hidpin.protocol import (
     StatusReport,
 )
 
-VENDOR_ID = 0x1209
-PRODUCT_ID = 0x0001
+DEFAULT_VENDOR_ID = 0x1209
+DEFAULT_PRODUCT_ID = 0x0001
 USAGE_PAGE = 0xFF00
 USAGE = 0x01
+
+
+def usb_ids() -> tuple[int, int]:
+    """USB の VID と PID。独自の番号でビルドしたときは HIDPIN_VID / HIDPIN_PID で上書きする。"""
+    return _env_id("HIDPIN_VID", DEFAULT_VENDOR_ID), _env_id("HIDPIN_PID", DEFAULT_PRODUCT_ID)
+
+
+def _env_id(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        value = int(raw, 0)
+    except ValueError:
+        raise HidpinError(f"{name} が 16 bit の数値ではありません: '{raw}'") from None
+    if not 0 <= value <= 0xFFFF:
+        raise HidpinError(f"{name} が 16 bit の範囲外です: '{raw}'")
+    return value
 
 REPORT_LEN = 1 + protocol.REPORT_PAYLOAD_LEN
 
@@ -110,8 +128,9 @@ def _is_hidpin(item: dict) -> bool:
 def find_devices(backend=None) -> list[DeviceEntry]:
     """Lists connected hidpin devices."""
     hid = backend or _default_backend()
+    vendor_id, product_id = usb_ids()
     entries = []
-    for item in hid.enumerate(VENDOR_ID, PRODUCT_ID):
+    for item in hid.enumerate(vendor_id, product_id):
         if not _is_hidpin(item):
             continue
         entries.append(

@@ -3,7 +3,7 @@
 import pytest
 from fake_hid import PICO_AVAILABLE, FakeHandle
 
-from hidpin import protocol
+from hidpin import device as device_module, protocol
 from hidpin.device import Device, HidpinError, PinConfigConflict, PinConfigRejected, ProtocolVersionError
 from hidpin.protocol import PinMode, PinSetting, Reason, Result, StatusFlags
 
@@ -161,6 +161,47 @@ def test_status_flags_are_exposed():
     report = device.read_status()
     assert report.overflow and report.more_events
     assert report.events[0].gpio == 5
+
+
+class RecordingBackend:
+    """A backend that only records the ids find_devices() filters by."""
+
+    def __init__(self):
+        self.calls = []
+
+    def enumerate(self, vendor_id=0, product_id=0):
+        self.calls.append((vendor_id, product_id))
+        return []
+
+
+def test_usb_ids_default(monkeypatch):
+    monkeypatch.delenv("HIDPIN_VID", raising=False)
+    monkeypatch.delenv("HIDPIN_PID", raising=False)
+    assert device_module.usb_ids() == (0x1209, 0x0001)
+
+
+def test_usb_ids_from_environment(monkeypatch):
+    monkeypatch.setenv("HIDPIN_PID", "0x1234")
+    assert device_module.usb_ids() == (0x1209, 0x1234)
+    monkeypatch.setenv("HIDPIN_VID", "4660")  # decimal is accepted too
+    assert device_module.usb_ids() == (4660, 0x1234)
+    monkeypatch.setenv("HIDPIN_PID", "")
+    assert device_module.usb_ids()[1] == 0x0001
+
+
+@pytest.mark.parametrize("value", ["zz", "0x10000", "-1"])
+def test_usb_ids_rejects_bad_values(monkeypatch, value):
+    monkeypatch.setenv("HIDPIN_PID", value)
+    with pytest.raises(HidpinError, match="HIDPIN_PID"):
+        device_module.usb_ids()
+
+
+def test_find_devices_uses_overridden_ids(monkeypatch):
+    monkeypatch.setenv("HIDPIN_VID", "0x2E8A")
+    monkeypatch.setenv("HIDPIN_PID", "0x10AB")
+    backend = RecordingBackend()
+    assert device_module.find_devices(backend=backend) == []
+    assert backend.calls == [(0x2E8A, 0x10AB)]
 
 
 def test_close_closes_handle():
