@@ -66,6 +66,9 @@ pip install ./host          # 今の Python 環境に入れる
 
 インストールせずに試すなら `cd host && uv run hidpin list` のように実行する。
 
+同じコマンドの Go 版と、Go 用のドライバライブラリが [`host-go`](host-go/README.md) にある
+（`go install github.com/yukkeorg/hidpin/host-go/cmd/hidpin@latest`、Linux 専用）。
+
 Linux では `/dev/hidraw*` を直接使うので、追加のライブラリは要らない。
 Windows と macOS では hidapi が必要になる（`pip install './host[hidapi]'`）。
 `HIDPIN_BACKEND=hidraw` または `HIDPIN_BACKEND=hidapi` で明示的に選べる。
@@ -122,6 +125,7 @@ firmware/core/        SDK に依存しないコア（レポート、チャタリ
 firmware/app/         Pico SDK + TinyUSB のファームウェア
 firmware/test/        コアのユニットテスト（PC 上で実行）
 host/                 Python ライブラリと CLI
+host-go/              Go のライブラリと CLI（Linux 専用、cgo 不要）。host-go/README.md を参照
 udev/                 Linux の udev ルール
 ```
 

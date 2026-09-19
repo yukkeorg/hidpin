@@ -75,6 +75,9 @@ pip install ./host          # into the current Python environment
 
 To try it without installing, run `cd host && uv run hidpin list`.
 
+A Go version of the same command and a Go driver library live in [`host-go`](host-go/README.md)
+(`go install github.com/yukkeorg/hidpin/host-go/cmd/hidpin@latest`, Linux only).
+
 On Linux the library talks to `/dev/hidraw*` directly, so no extra library is needed. Windows
 and macOS need hidapi (`pip install './host[hidapi]'`). `HIDPIN_BACKEND=hidraw` or
 `HIDPIN_BACKEND=hidapi` picks one explicitly. The hidapi wheels on PyPI are built with the
@@ -135,6 +138,7 @@ firmware/core/        the core, free of SDK dependencies (reports, debouncing, e
 firmware/app/         the firmware built on the Pico SDK and TinyUSB
 firmware/test/        unit tests for the core, run on a PC
 host/                 the Python library and CLI
+host-go/              the Go library and CLI (Linux, no cgo), see host-go/README.md
 udev/                 the Linux udev rule
 ```
 
