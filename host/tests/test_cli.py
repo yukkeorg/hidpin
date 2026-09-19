@@ -46,6 +46,26 @@ def fake_device(monkeypatch):
     return device, handle
 
 
+@pytest.mark.parametrize("argv", [[], ["--json"], ["config"]])
+def test_missing_command_prints_help_and_error(argv, capsys):
+    with pytest.raises(SystemExit) as exc:
+        cli.main(argv)
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("usage: hidpin")
+    assert "show this help message and exit" in captured.err
+    last = captured.err.strip().splitlines()[-1]
+    assert last.startswith("hidpin") and "error: the following arguments are required" in last
+
+
+def test_other_usage_errors_print_only_the_short_usage(capsys):
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["bogus"])
+    assert exc.value.code == 2
+    assert "show this help message and exit" not in capsys.readouterr().err
+
+
 def test_info_command(fake_device, capsys):
     assert cli.main(["info"]) == 0
     out = capsys.readouterr().out

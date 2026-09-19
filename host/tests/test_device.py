@@ -42,10 +42,10 @@ def test_set_pin_config_applies_and_verifies():
 
 def test_set_pin_config_detects_conflict():
     device, handle = make_device()
-    handle.force_request_id = 99
+    handle.conflict = True
     with pytest.raises(PinConfigConflict) as error:
         device.update_pins({5: PinSetting.unused()})
-    assert error.value.seen == 99
+    assert error.value.seen != error.value.expected
 
 
 def test_set_pin_config_rejected_by_device():

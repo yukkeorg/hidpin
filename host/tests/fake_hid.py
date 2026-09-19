@@ -25,7 +25,7 @@ class FakeHandle:
         self.result_gpio = protocol.RESULT_GPIO_NONE
         self.request_id = 0
         # Lets a test pretend another process wrote a configuration in between.
-        self.force_request_id: int | None = None
+        self.conflict = False
         # Lets a test make the device reject what the host considers valid.
         self.validate_available: int | None = None
         self.reads: list[bytes] = []
@@ -54,7 +54,8 @@ class FakeHandle:
         available = self.validate_available if self.validate_available is not None else self.info.available
         result, gpio, request_id = protocol.validate_pin_config_payload(payload, available)
         self.result, self.result_gpio = result, gpio
-        self.request_id = self.force_request_id if self.force_request_id is not None else request_id
+        # Under conflict, read back a request_id that always differs from the one sent.
+        self.request_id = request_id % 255 + 1 if self.conflict else request_id
         if result == Result.OK:
             self.config = protocol.decode_pin_config(payload).config
         return len(data)
