@@ -256,10 +256,22 @@ def cmd_watch(args) -> int:
     return 0
 
 
+def missing_command(parser: argparse.ArgumentParser, what: str):
+    """Print the full help before the error, unlike argparse's own short usage line."""
+
+    def fail(args: argparse.Namespace) -> int:
+        parser.print_help(sys.stderr)
+        print(file=sys.stderr)
+        parser.exit(2, f"{parser.prog}: error: the following arguments are required: {what}\n")
+
+    return fail
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hidpin", description="watch and configure a hidpin device")
     parser.add_argument("--json", action="store_true", help="print the result as JSON")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    parser.set_defaults(func=missing_command(parser, "command"))
+    subparsers = parser.add_subparsers(dest="command")
 
     def with_serial(sub: argparse.ArgumentParser) -> argparse.ArgumentParser:
         sub.add_argument("--serial", help="serial number of the device (optional when only one is connected)")
@@ -278,7 +290,8 @@ def build_parser() -> argparse.ArgumentParser:
     watch.set_defaults(func=cmd_watch)
 
     config = subparsers.add_parser("config", help="read or write the pin configuration")
-    config_sub = config.add_subparsers(dest="config_command", required=True)
+    config.set_defaults(func=missing_command(config, "get or set"))
+    config_sub = config.add_subparsers(dest="config_command")
     config_get = with_serial(config_sub.add_parser("get", help="show the current pin configuration"))
     config_get.set_defaults(func=cmd_config_get)
     config_set = with_serial(config_sub.add_parser("set", help="change the pin configuration"))
