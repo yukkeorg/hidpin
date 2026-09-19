@@ -503,6 +503,36 @@ static void test_resync_injects_only_differing_pins(void)
     EXPECT_EQ(105000, hp_event_queue_peek(&engine.queue, 1)->start_us);
 }
 
+static void test_activity_counts_events_and_outputs(void)
+{
+    setup();
+    uint32_t start = hp_engine_activity(&engine);
+
+    hp_engine_task(&engine, 1000000);  // a periodic report is not activity
+    EXPECT_EQ(start, hp_engine_activity(&engine));
+
+    hp_engine_on_edge(&engine, 5, false, 2000000);
+    hp_engine_on_edge(&engine, 5, true, 2001000);  // bounce back: no event, no activity
+    hp_engine_task(&engine, 2030000);
+    EXPECT_EQ(start, hp_engine_activity(&engine));
+    hp_engine_on_edge(&engine, 5, false, 2040000);
+    hp_engine_task(&engine, 2060000);
+    EXPECT_EQ(start + 1u, hp_engine_activity(&engine));
+
+    hp_pin_config_t config;
+    hp_pin_config_default(PICO_AVAILABLE, &config);
+    config.mode[7] = HP_MODE_OUTPUT;
+    config.param[7] = 0;
+    set_config(&config, 3, 3000000);  // configuration changes are not activity
+    hp_engine_task(&engine, 3001000);
+    EXPECT_EQ(start + 1u, hp_engine_activity(&engine));
+
+    EXPECT_TRUE(send_output(BIT(7), BIT(7), HP_OUTPUT_PAYLOAD_LEN));
+    EXPECT_EQ(start + 2u, hp_engine_activity(&engine));
+    EXPECT_TRUE(!send_output(BIT(7), 0, 9));  // ignored report: no activity
+    EXPECT_EQ(start + 2u, hp_engine_activity(&engine));
+}
+
 static void test_device_info_passthrough(void)
 {
     setup();
@@ -532,6 +562,7 @@ int main(void)
     RUN_TEST(test_unused_transition_stops_tracking);
     RUN_TEST(test_event_age_saturates);
     RUN_TEST(test_resync_injects_only_differing_pins);
+    RUN_TEST(test_activity_counts_events_and_outputs);
     RUN_TEST(test_device_info_passthrough);
     TEST_EXIT();
 }

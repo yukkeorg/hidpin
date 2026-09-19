@@ -1,5 +1,7 @@
 #include "status_led.h"
 
+#include <stdbool.h>
+
 #include "pico/stdlib.h"
 
 #if defined(PICO_DEFAULT_WS2812_PIN)
@@ -8,9 +10,12 @@
 #endif
 
 #define WS2812_FREQ_HZ 800000.0f
-#define WS2812_ON_GRB 0x100000u  // dim green
+// Colours are in GRB order; kept dim.
+#define WS2812_GREEN 0x100000u
+#define WS2812_BLUE 0x000010u
 
-static bool led_state = false;
+static status_led_state_t led_state;
+static bool led_initialised = false;
 
 #if defined(PICO_DEFAULT_WS2812_PIN)
 static PIO ws2812_pio = pio0;
@@ -22,12 +27,22 @@ static void ws2812_put(uint32_t grb)
 }
 #endif
 
+static void apply(status_led_state_t state)
+{
+#if defined(PICO_DEFAULT_LED_PIN)
+    gpio_put(PICO_DEFAULT_LED_PIN, state == STATUS_LED_POWER);
+#elif defined(PICO_DEFAULT_WS2812_PIN)
+    ws2812_put(state == STATUS_LED_POWER ? WS2812_GREEN : WS2812_BLUE);
+#else
+    (void)state;
+#endif
+}
+
 void status_led_init(void)
 {
 #if defined(PICO_DEFAULT_LED_PIN)
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
-    gpio_put(PICO_DEFAULT_LED_PIN, false);
 #elif defined(PICO_DEFAULT_WS2812_PIN)
 #if defined(PICO_DEFAULT_WS2812_POWER_PIN)
     gpio_init(PICO_DEFAULT_WS2812_POWER_PIN);
@@ -36,20 +51,17 @@ void status_led_init(void)
 #endif
     uint offset = pio_add_program(ws2812_pio, &ws2812_program);
     ws2812_program_init(ws2812_pio, ws2812_sm, offset, PICO_DEFAULT_WS2812_PIN, WS2812_FREQ_HZ, false);
-    ws2812_put(0u);
 #endif
-    led_state = false;
+    led_state = STATUS_LED_POWER;
+    led_initialised = true;
+    apply(led_state);
 }
 
-void status_led_set(bool on)
+void status_led_show(status_led_state_t state)
 {
-    if (on == led_state) {
+    if (!led_initialised || state == led_state) {
         return;
     }
-    led_state = on;
-#if defined(PICO_DEFAULT_LED_PIN)
-    gpio_put(PICO_DEFAULT_LED_PIN, on);
-#elif defined(PICO_DEFAULT_WS2812_PIN)
-    ws2812_put(on ? WS2812_ON_GRB : 0u);
-#endif
+    led_state = state;
+    apply(state);
 }
