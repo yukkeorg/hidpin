@@ -1,0 +1,26 @@
+{
+    "configurations": [
+        {
+            "name": "RP2040",
+            // Include paths and defines come from the CMake builds. Regenerate them with
+            //   cmake -S firmware -B build/qtpy -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            //   cmake -S firmware/test -B build/core-tests -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            "compileCommands": [
+                "${workspaceFolder}/build/qtpy/compile_commands.json",
+                "${workspaceFolder}/build/core-tests/compile_commands.json"
+            ],
+            // Used only for files missing from the compile databases.
+            "includePath": [
+                "${workspaceFolder}/firmware/app",
+                "${workspaceFolder}/firmware/core/include",
+                "${workspaceFolder}/firmware/test",
+                "${workspaceFolder}/build/core-tests/generated"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/arm-none-eabi-gcc",
+            "cStandard": "gnu17",
+            "intelliSenseMode": "linux-gcc-arm"
+        }
+    ],
+    "version": 4
+}
