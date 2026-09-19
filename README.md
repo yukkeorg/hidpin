@@ -11,10 +11,13 @@ Supported boards:
 
 | Board | Available GPIOs | Status LED |
 |---|---|---|
-| Raspberry Pi Pico | 26 (GPIO0–22, 26–28) | on-board LED (GPIO25) |
-| Adafruit QT Py RP2040 | 13 (GPIO3–6, 20, 22–29) | NeoPixel (GPIO12) |
+| Raspberry Pi Pico | 26 (GPIO0–22, 26–28) | on-board LED (GPIO25): on, off briefly on activity |
+| Adafruit QT Py RP2040 | 13 (GPIO3–6, 20, 22–29) | NeoPixel (GPIO12): green, blue briefly on activity |
 
-> **Status**: the tests on a PC pass (32 for the firmware core, 56 for the host), and the
+The status LED lights as soon as the board is powered. "Activity" is an edge event on a monitored
+pin or an applied output report; the LED then changes for about 100 ms.
+
+> **Status**: the tests on a PC pass (33 for the firmware core, 56 for the host), and the
 > software has been **verified on a real Adafruit QT Py RP2040** (2026-09-17): enumeration,
 > monitoring and edge events, debouncing, pin configuration, outputs, and the recovery after a
 > bus reset. The Raspberry Pi Pico has not been tried yet. The procedure is in

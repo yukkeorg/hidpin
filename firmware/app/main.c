@@ -22,6 +22,9 @@
     } while (0)
 #endif
 
+// How long the LED shows activity after an edge event or an applied output report.
+#define ACTIVITY_FLASH_US 100000u
+
 // Accessed only from the main loop and from TinyUSB callbacks, which run inside tud_task().
 static hp_engine_t engine;
 
@@ -105,6 +108,8 @@ int main(void)
 #endif
 
     bool was_mounted = false;
+    uint32_t seen_activity = hp_engine_activity(&engine);
+    uint64_t activity_until_us = 0;
     while (true) {
         tud_task();
 
@@ -127,10 +132,15 @@ int main(void)
         }
         was_mounted = mounted;
 
-        bool active = mounted && !tud_suspended();
-        if (active && tud_hid_ready()) {
+        if (mounted && !tud_suspended() && tud_hid_ready()) {
             send_status_report(now_us);
         }
-        status_led_set(active);
+
+        uint32_t activity = hp_engine_activity(&engine);
+        if (activity != seen_activity) {
+            seen_activity = activity;
+            activity_until_us = now_us + ACTIVITY_FLASH_US;
+        }
+        status_led_show(now_us < activity_until_us ? STATUS_LED_ACTIVITY : STATUS_LED_POWER);
     }
 }

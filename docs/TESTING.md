@@ -47,7 +47,7 @@ hidpin info
 - [ ] `lsusb` に `1209:0001` が出る
 - [ ] `hidpin list` にシリアル番号（16 桁の 16 進数）が出る
 - [ ] `hidpin info` のボード名と利用可能GPIOが、つないだボードと一致する（Pico は 26 本、QT Py は 13 本）
-- [ ] 状態 LED が点灯する（Pico は本体の LED、QT Py は NeoPixel が緑）
+- [ ] 電源が入った時点で状態 LED が点灯する（Pico は本体の LED、QT Py は NeoPixel が緑）
 - [ ] `dmesg` に `hidraw` として現れ、キーボードやマウスとしては認識されない
 
 USB ケーブルを抜くと LED が消える（電源も切れる）。
@@ -64,6 +64,7 @@ hidpin watch
 - [ ] スイッチを押すと `GPIO5  ON  (LOW)` が 1 行出る
 - [ ] 離すと `GPIO5  OFF (HIGH)` が 1 行出る
 - [ ] 1 回の押し離しで、余分な行が出ない（チャタリングが除去されている）
+- [ ] 押したときと離したときに、状態 LED が一瞬変わる（QT Py は青、Pico は消灯）
 - [ ] 表示される時刻の差が、実際に押していた時間とおおよそ一致する
 
 `hidpin --json watch` では 1 行 1 レポートの JSON が出る。`events` の `start_us` が変化の開始時刻。
@@ -111,6 +112,7 @@ hidpin output 7=low
 
 - [ ] `out:low` にした時点では LED は消えている
 - [ ] `output 7=high` で LED が点く
+- [ ] 出力指示のたびに、状態 LED が一瞬変わる（QT Py は青、Pico は消灯）
 - [ ] `output 7=low` で消える
 - [ ] `hidpin watch` に出力の変化が出る（`reason` に `OUTPUT_APPLIED`）
 - [ ] 出力ピンではない GPIO を指定すると警告が出て、何も変わらない

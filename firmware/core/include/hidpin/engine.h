@@ -43,6 +43,8 @@ typedef struct {
     bool config_changed;
     uint64_t settle_deadline_us;
 
+    uint32_t activity;  // edge events plus applied output reports; wraps around
+
     uint8_t pending_reasons;
     uint16_t next_seq;
     uint16_t last_seq;
@@ -88,5 +90,9 @@ bool hp_engine_output(hp_engine_t *e, const uint8_t *payload, uint16_t len);
 
 // USB disconnect, suspend or bus reset: return output pins to their initial output levels.
 void hp_engine_usb_reset(hp_engine_t *e);
+
+// Counts confirmed edge events and applied output reports (the firmware flashes its LED on
+// every change). Only differences between two readings are meaningful; the value wraps.
+uint32_t hp_engine_activity(const hp_engine_t *e);
 
 #endif

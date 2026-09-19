@@ -67,6 +67,7 @@ static bool is_tracking(const hp_engine_t *e, uint8_t gpio)
 
 static void push_event(hp_engine_t *e, uint8_t gpio, bool level, uint64_t start_us)
 {
+    e->activity++;
     hp_edge_event_t event = {.gpio = gpio, .level = level, .start_us = start_us};
     (void)hp_event_queue_push(&e->queue, &event);
 }
@@ -319,6 +320,7 @@ bool hp_engine_output(hp_engine_t *e, const uint8_t *payload, uint16_t len)
         return false;
     }
 
+    e->activity++;
     uint32_t target = mask & output_mask(&e->config);
     e->output_levels = (e->output_levels & ~target) | (value & target);
     if (target != 0u) {
@@ -338,4 +340,9 @@ void hp_engine_usb_reset(hp_engine_t *e)
     e->output_levels = (e->output_levels & ~outputs) | levels;
     e->hw.write_outputs(e->hw.ctx, outputs, levels);
     e->pending_reasons |= HP_REASON_OUTPUT_RESET;
+}
+
+uint32_t hp_engine_activity(const hp_engine_t *e)
+{
+    return e->activity;
 }
