@@ -1,3 +1,4 @@
 {
-  "cmake.sourceDirectory": "${workspaceFolder}/firmware"
+  "cmake.sourceDirectory": "${workspaceFolder}/firmware",
+  "chat.disableAIFeatures": true
 }
