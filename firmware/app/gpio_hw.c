@@ -6,7 +6,7 @@
 #include "pico/time.h"
 
 #define EDGE_EVENTS (GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL)
-#define EDGE_BUFFER_SIZE 256u  // power of two
+#define EDGE_BUFFER_SIZE 256u // power of two
 
 // Single producer (GPIO interrupt) / single consumer (main loop) ring buffer.
 static raw_edge_t edge_buffer[EDGE_BUFFER_SIZE];
@@ -20,21 +20,31 @@ static void gpio_edge_irq(uint gpio, uint32_t event_mask)
     bool rise = (event_mask & GPIO_IRQ_EDGE_RISE) != 0u;
     bool fall = (event_mask & GPIO_IRQ_EDGE_FALL) != 0u;
     bool level;
-    if (rise && !fall) {
+    if (rise && !fall)
+    {
         level = true;
-    } else if (fall && !rise) {
+    }
+    else if (fall && !rise)
+    {
         level = false;
-    } else {
+    }
+    else
+    {
         // Both edges were latched before we ran: only the current value is meaningful.
         level = gpio_get(gpio);
     }
 
     uint16_t next = (uint16_t)((edge_head + 1u) & (EDGE_BUFFER_SIZE - 1u));
-    if (next == edge_tail) {
+    if (next == edge_tail)
+    {
         edge_overflow = true;
         return;
     }
-    edge_buffer[edge_head] = (raw_edge_t){.gpio = (uint8_t)gpio, .level = level, .time_us = now_us};
+    edge_buffer[edge_head] = (raw_edge_t){
+        .gpio = (uint8_t)gpio,
+        .level = level,
+        .time_us = now_us};
+
     edge_head = next;
 }
 
@@ -102,7 +112,8 @@ void gpio_hw_init(hp_hw_t *hw)
 bool gpio_hw_pop_edge(raw_edge_t *edge)
 {
     uint16_t tail = edge_tail;
-    if (tail == edge_head) {
+    if (tail == edge_head)
+    {
         return false;
     }
     *edge = edge_buffer[tail];
