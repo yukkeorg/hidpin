@@ -32,8 +32,7 @@ func FindDevices() ([]Entry, error) {
 	return entries, nil
 }
 
-// OpenPath opens a device node such as /dev/hidraw0 and checks its protocol version.
-func OpenPath(path, serial string) (*Device, error) {
+func openTransport(path string) (Transport, error) {
 	transport, err := hidraw.Open(path)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
@@ -43,6 +42,15 @@ func OpenPath(path, serial string) (*Device, error) {
 		}
 		return nil, fmt.Errorf("cannot open the device: %w", err)
 	}
+	return transport, nil
+}
+
+// OpenPath opens a device node such as /dev/hidraw0 and checks its protocol version.
+func OpenPath(path, serial string) (*Device, error) {
+	transport, err := openTransport(path)
+	if err != nil {
+		return nil, err
+	}
 	device := NewDevice(transport, serial)
 	if _, err := device.Info(); err != nil {
 		transport.Close()
@@ -50,3 +58,11 @@ func OpenPath(path, serial string) (*Device, error) {
 	}
 	return device, nil
 }
+
+type systemBus struct{}
+
+// SystemBus is the bus of the operating system: /dev/hidraw* on Linux.
+func SystemBus() Bus { return systemBus{} }
+
+func (systemBus) Devices() ([]Entry, error)           { return FindDevices() }
+func (systemBus) Open(entry Entry) (Transport, error) { return openTransport(entry.Path) }

@@ -1,6 +1,7 @@
 package hidpin_test
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -68,4 +69,47 @@ func ExampleDevice_ReadStatus() {
 			fmt.Printf("GPIO%d on=%v at %d us\n", event.GPIO, on, start)
 		}
 	}
+}
+
+// A long-running program keeps GPIO5 monitored and GPIO7 an output, whatever happens to the
+// board. This example runs against a simulated board; with a real one, leave Bus nil.
+func ExampleWatch() {
+	board := hidpintest.NewBoard("ABCD0123456789EF")
+	bus := hidpintest.NewBus(board)
+
+	target, err := hidpin.PinConfig{}.WithPins(map[int]hidpin.PinSetting{
+		5: hidpin.MonitorPullUp(20), // pins not listed are unused
+		7: hidpin.Output(false),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	w, err := hidpin.Watch(context.Background(), hidpin.WatchOptions{TargetPins: &target, Bus: bus})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer w.Close()
+
+	for event := range w.Events() {
+		switch e := event.(type) {
+		case hidpin.Connected:
+			fmt.Println("connected to", e.Serial)
+		case hidpin.OutputsReset:
+			fmt.Println("outputs at their initial level:", e.GPIOs, "-", e.Cause)
+		case hidpin.InitialOnOff:
+			fmt.Println("GPIO5 on:", e.On[5])
+			board.SetInput(5, false) // someone presses the switch
+		case hidpin.OnOffChange:
+			fmt.Println("GPIO5 on:", e.On, "timed:", e.HasTime)
+			w.Close()
+		}
+	}
+	if err := w.Err(); err != nil {
+		log.Fatal(err)
+	}
+	// Output:
+	// connected to ABCD0123456789EF
+	// outputs at their initial level: [7] - pin configuration written
+	// GPIO5 on: false
+	// GPIO5 on: true timed: true
 }

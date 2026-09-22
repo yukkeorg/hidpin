@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/yukkeorg/hidpin/host-go/hidpin"
 	"github.com/yukkeorg/hidpin/host-go/hidpin/hidpintest"
@@ -185,18 +187,117 @@ func TestOutputCommandWarnsAboutNonOutputPins(t *testing.T) {
 	}
 }
 
-func TestWatchPrintsEventsUntilCancelled(t *testing.T) {
-	fake := withFake(t)
-	s := fake.CurrentStatus()
-	s.Seq, s.Reason = 1, hidpin.ReasonLevelChanged
-	s.Levels &^= 1 << 5
-	s.Events = []hidpin.EdgeEvent{{GPIO: 5, Level: false, AgeUS: 20_000}}
-	fake.Queue(s)
+// withBoard points the watch command at a simulated board for the duration of a test.
+func withBoard(t *testing.T) (*hidpintest.Bus, *hidpintest.Board) {
+	t.Helper()
+	board := hidpintest.NewBoard("ABCD0123456789EF")
+	bus := hidpintest.NewBus(board)
+	savedBus, savedInterval := watchBus, scanInterval
+	watchBus, scanInterval = bus, 5*time.Millisecond
+	t.Cleanup(func() { watchBus, scanInterval = savedBus, savedInterval })
+	return bus, board
+}
+
+// syncBuffer collects the output of a command running on another goroutine.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func (b *syncBuffer) waitFor(t *testing.T, text string) {
+	t.Helper()
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+		if strings.Contains(b.String(), text) {
+			return
+		}
+	}
+	t.Fatalf("%q never appeared in %q", text, b.String())
+}
+
+// startWatch runs the watch command until the returned function cancels it and reports the
+// exit status.
+func startWatch(args ...string) (*syncBuffer, *syncBuffer, func() int) {
 	ctx, cancel := context.WithCancel(context.Background())
-	fake.OnIdle = cancel
-	code, out, _ := runCLI(ctx, "watch")
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	if code != 0 || len(lines) != 2 || !strings.Contains(lines[0], "GPIO5=OFF") || !strings.Contains(lines[1], "GPIO5  ON  (LOW)") {
-		t.Errorf("%d %q", code, out)
+	stdout, stderr := &syncBuffer{}, &syncBuffer{}
+	done := make(chan int, 1)
+	go func() { done <- run(ctx, append([]string{"watch"}, args...), stdout, stderr) }()
+	return stdout, stderr, func() int {
+		cancel()
+		select {
+		case code := <-done:
+			return code
+		case <-time.After(3 * time.Second):
+			return -1
+		}
+	}
+}
+
+func TestWatchPrintsEventsUntilCancelled(t *testing.T) {
+	_, board := withBoard(t)
+	stdout, _, stop := startWatch()
+	stdout.waitFor(t, "GPIO5=OFF")
+	board.SetInput(5, false)
+	stdout.waitFor(t, "GPIO5  ON  (LOW)")
+	code := stop()
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if code != 0 || len(lines) != 2 || !strings.HasPrefix(lines[0], "GPIO0=OFF GPIO1=OFF") ||
+		lines[1] != "[  4.981000] GPIO5  ON  (LOW)" {
+		t.Errorf("%d %q", code, stdout.String())
+	}
+}
+
+func TestWatchSurvivesUnplugging(t *testing.T) {
+	bus, board := withBoard(t)
+	stdout, _, stop := startWatch("--active-high", "5")
+	stdout.waitFor(t, "GPIO5=ON")
+	bus.Unplug(board)
+	stdout.waitFor(t, "the device was disconnected; waiting for it to come back")
+	board.SetInput(5, false)
+	bus.Plug(board)
+	stdout.waitFor(t, "the device is connected again")
+	stdout.waitFor(t, "[         ?] GPIO5  OFF (LOW)")
+	if code := stop(); code != 0 {
+		t.Errorf("exit %d", code)
+	}
+}
+
+func TestWatchJSONKeepsStdoutForReports(t *testing.T) {
+	bus, board := withBoard(t)
+	stdout, stderr, stop := startWatch("--json")
+	stdout.waitFor(t, `"reason":["HOST_REQUEST"]`)
+	board.SetInput(5, false)
+	stdout.waitFor(t, `"events":[{"gpio":5,"level":false,"age_us":20000,"start_us":4981000}]`)
+	bus.Unplug(board)
+	stderr.waitFor(t, "the device was disconnected")
+	stop()
+	for _, line := range strings.Split(strings.TrimSpace(stdout.String()), "\n") {
+		var report map[string]any
+		if err := json.Unmarshal([]byte(line), &report); err != nil {
+			t.Errorf("not JSON: %q", line)
+		}
+	}
+	if !strings.Contains(stdout.String(), `"on":{"0":false,"1":false`) {
+		t.Errorf("ON/OFF missing: %q", stdout.String())
+	}
+}
+
+func TestWatchFailsWithoutDevice(t *testing.T) {
+	bus, board := withBoard(t)
+	bus.Unplug(board)
+	code, _, errOut := runCLI(context.Background(), "watch")
+	if code != 1 || errOut != "error: no hidpin device found\n" {
+		t.Errorf("%d %q", code, errOut)
 	}
 }
