@@ -45,6 +45,9 @@ func envID(name string, fallback uint16) (uint16, error) {
 
 // Transport carries reports to and from one device. Every report starts with its report ID.
 // The Linux hidraw backend implements it; tests use a fake.
+//
+// Watch calls Read from a goroutine of its own while it calls the other methods, so a transport
+// used with Watch must allow that, and Close must make a pending Read return.
 type Transport interface {
 	// Read waits for one input report. It returns 0 and no error when the timeout expires; a
 	// negative timeout waits forever.
@@ -68,8 +71,20 @@ type Entry struct {
 	Product      string
 }
 
+// Bus finds and opens hidpin devices: SystemBus uses the operating system, and hidpintest.Bus
+// simulates boards being plugged in and out.
+type Bus interface {
+	// Devices lists the connected hidpin devices.
+	Devices() ([]Entry, error)
+	// Open opens one of the listed devices.
+	Open(entry Entry) (Transport, error)
+}
+
 // ErrNotFound is returned when no matching device is connected.
 var ErrNotFound = errors.New("no hidpin device found")
+
+// ErrSeveralDevices is returned when no serial number was given but several devices are connected.
+var ErrSeveralDevices = errors.New("several devices are connected")
 
 // ErrUnsupportedPlatform is returned on operating systems without a backend.
 var ErrUnsupportedPlatform = errors.New("hidpin supports Linux (hidraw) only")
@@ -121,28 +136,40 @@ func Open(serial string) (*Device, error) {
 	if err != nil {
 		return nil, err
 	}
-	if serial != "" {
-		matching := entries[:0]
-		for _, e := range entries {
-			if e.Serial == serial {
-				matching = append(matching, e)
-			}
+	entry, err := ChooseDevice(entries, serial)
+	if err != nil {
+		return nil, err
+	}
+	return OpenPath(entry.Path, entry.Serial)
+}
+
+// ChooseDevice picks the entry with the given serial number, or the only entry when serial is
+// empty. It fails with ErrNotFound when nothing matches, and with ErrSeveralDevices when serial is
+// empty but there are several entries.
+func ChooseDevice(entries []Entry, serial string) (Entry, error) {
+	var matching []Entry
+	for _, e := range entries {
+		if serial == "" || e.Serial == serial {
+			matching = append(matching, e)
 		}
-		entries = matching
 	}
 	switch {
-	case len(entries) == 0 && serial == "":
-		return nil, ErrNotFound
-	case len(entries) == 0:
-		return nil, fmt.Errorf("%w: no device with serial number %s", ErrNotFound, serial)
-	case len(entries) > 1 && serial == "":
-		serials := make([]string, len(entries))
-		for i, e := range entries {
-			serials[i] = e.Serial
-		}
-		return nil, fmt.Errorf("several devices are connected; pick one with --serial: %s", strings.Join(serials, ", "))
+	case len(matching) == 0 && serial == "":
+		return Entry{}, ErrNotFound
+	case len(matching) == 0:
+		return Entry{}, fmt.Errorf("%w: no device with serial number %s", ErrNotFound, serial)
+	case len(matching) > 1 && serial == "":
+		return Entry{}, fmt.Errorf("%w; pick one with --serial: %s", ErrSeveralDevices, joinSerials(matching))
 	}
-	return OpenPath(entries[0].Path, entries[0].Serial)
+	return matching[0], nil
+}
+
+func joinSerials(entries []Entry) string {
+	serials := make([]string, len(entries))
+	for i, e := range entries {
+		serials[i] = e.Serial
+	}
+	return strings.Join(serials, ", ")
 }
 
 // Device is a connected hidpin device. It is not safe for concurrent use.

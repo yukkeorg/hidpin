@@ -1,5 +1,6 @@
 // Command hidpin watches and configures hidpin devices. It is the Go counterpart of the Python
-// CLI in host/ and takes the same commands and options:
+// CLI in host/ and takes the same commands and options; unlike it, watch keeps going when the
+// device is unplugged and plugged in again:
 //
 //	hidpin [--json] list
 //	hidpin [--json] info [--serial S]
@@ -25,10 +26,13 @@ import (
 	"github.com/yukkeorg/hidpin/host-go/hidpin"
 )
 
-// openDevice and findDevices are variables so tests can replace the hardware.
+// openDevice, findDevices, watchBus and scanInterval are variables so tests can replace the
+// hardware.
 var (
-	openDevice  = hidpin.Open
-	findDevices = hidpin.FindDevices
+	openDevice   = hidpin.Open
+	findDevices  = hidpin.FindDevices
+	watchBus     = hidpin.SystemBus()
+	scanInterval time.Duration // zero: hidpin.DefaultScanInterval
 )
 
 const usage = `usage: hidpin [--json] {list,info,watch,config,output} ...
@@ -430,7 +434,8 @@ type jsonEvent struct {
 	StartUS *uint64 `json:"start_us"`
 }
 
-func (a *app) reportJSON(device *hidpin.Device, s hidpin.Status, config hidpin.PinConfig) error {
+func (a *app) reportJSON(received hidpin.StatusReceived, missed int) error {
+	s := received.Status
 	events := []jsonEvent{}
 	for _, e := range s.Events {
 		event := jsonEvent{GPIO: e.GPIO, Level: e.Level, AgeUS: e.AgeUS}
@@ -451,98 +456,129 @@ func (a *app) reportJSON(device *hidpin.Device, s hidpin.Status, config hidpin.P
 		Events        []jsonEvent   `json:"events"`
 		MissedReports int           `json:"missed_reports"`
 	}{s.Seq, s.Reason.Names(), s.Flags.Names(), s.TimestampUS, s.Monitored, s.Outputs, s.Levels,
-		gpioMap[bool](device.OnOff(s, config)), events, device.MissedReports()})
+		gpioMap[bool](received.On), events, missed})
 }
 
-func (a *app) printEvents(device *hidpin.Device, s hidpin.Status, config hidpin.PinConfig) {
-	for _, e := range s.Events {
-		state := "OFF"
-		if e.Level != device.IsActiveLow(int(e.GPIO), config) {
-			state = "ON "
-		}
-		when := "         ?"
-		if start, ok := e.StartUS(s.TimestampUS); ok {
-			when = fmt.Sprintf("%10.6f", float64(start)/1e6)
-		}
-		fmt.Fprintf(a.stdout, "[%s] GPIO%-2d %s (%s)\n", when, e.GPIO, state, levelName(e.Level))
+func onOffName(on bool) string {
+	if on {
+		return "ON"
+	}
+	return "OFF"
+}
+
+func (a *app) printChange(c hidpin.OnOffChange) {
+	when := "         ?"
+	if c.HasTime {
+		when = fmt.Sprintf("%10.6f", float64(c.DeviceUS)/1e6)
+	}
+	fmt.Fprintf(a.stdout, "[%s] GPIO%-2d %-3s (%s)\n", when, c.GPIO, onOffName(c.On), levelName(c.Level))
+}
+
+// note prints a message about the connection: on stdout, or on stderr with --json so that stdout
+// stays a stream of status reports.
+func (a *app) note(message string) {
+	if a.opts.json {
+		fmt.Fprintln(a.stderr, message)
+	} else {
+		fmt.Fprintln(a.stdout, message)
 	}
 }
 
-func (a *app) cmdWatch(ctx context.Context, device *hidpin.Device) error {
-	config, err := device.PinConfig()
-	if err != nil {
-		return err
-	}
-	for flag, activeLow := range map[string]bool{a.opts.activeLow: true, a.opts.activeHigh: false} {
-		gpios, err := parseGPIOList(flag)
+func (a *app) cmdWatch(ctx context.Context) error {
+	activeLow := map[int]bool{}
+	for _, flag := range []struct {
+		list string
+		low  bool
+	}{{a.opts.activeLow, true}, {a.opts.activeHigh, false}} {
+		gpios, err := parseGPIOList(flag.list)
 		if err != nil {
 			return usageError{message: err.Error()}
 		}
 		for _, gpio := range gpios {
-			device.SetPolarity(gpio, activeLow)
+			activeLow[gpio] = flag.low
 		}
 	}
 
-	initial, err := device.RequestStatus()
+	// Like the other commands, fail at once when there is no device to watch.
+	entries, err := watchBus.Devices()
 	if err != nil {
 		return err
 	}
-	if a.opts.json {
-		if err := a.reportJSON(device, initial, config); err != nil {
-			return err
-		}
-	} else {
-		states := device.OnOff(initial, config)
-		parts := []string{}
-		for _, gpio := range hidpin.MaskToGPIOs(initial.Monitored) {
-			state := "OFF"
-			if states[gpio] {
-				state = "ON"
-			}
-			parts = append(parts, fmt.Sprintf("GPIO%d=%s", gpio, state))
-		}
-		fmt.Fprintln(a.stdout, strings.Join(parts, " "))
+	entry, err := hidpin.ChooseDevice(entries, a.opts.serial)
+	if err != nil {
+		return err
 	}
+	w, err := hidpin.Watch(ctx, hidpin.WatchOptions{Serial: entry.Serial, ActiveLow: activeLow, ScanInterval: scanInterval, Bus: watchBus})
+	if err != nil {
+		return err
+	}
+	defer w.Close()
 
-	missed := device.MissedReports()
-	for ctx.Err() == nil {
-		s, ok, err := device.ReadStatus(250 * time.Millisecond)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			continue
-		}
-		if a.opts.json {
-			if err := a.reportJSON(device, s, config); err != nil {
-				return err
+	connected := false
+	missed := 0
+	for event := range w.Events() {
+		switch e := event.(type) {
+		case hidpin.Connected:
+			if e.Reconnected {
+				a.note("the device is connected again")
 			}
-			continue
-		}
-		if device.MissedReports() != missed {
-			fmt.Fprintf(a.stderr, "warning: missed %d status report(s)\n", device.MissedReports()-missed)
-			missed = device.MissedReports()
-		}
-		if s.Overflow() {
-			fmt.Fprintln(a.stderr, "warning: the device dropped edge events (the history is incomplete)")
-		}
-		if s.Reason&hidpin.ReasonConfigChanged != 0 {
-			report, err := device.GetPinConfig()
-			if err != nil {
-				return err
+			connected = true
+		case hidpin.ConnectFailed:
+			if !connected {
+				return e.Err
 			}
-			config = report.Config
-			fmt.Fprintln(a.stdout, "the pin configuration changed")
-		}
-		if s.Reason&hidpin.ReasonOutputReset != 0 {
-			fmt.Fprintln(a.stdout, "outputs returned to their initial level (USB disconnect or suspend)")
-		}
-		a.printEvents(device, s, config)
-		if a.opts.all && len(s.Events) == 0 {
-			fmt.Fprintf(a.stdout, "seq=%d reason=%s\n", s.Seq, strings.Join(s.Reason.Names(), ","))
+			fmt.Fprintf(a.stderr, "warning: %s\n", e.Err)
+		case hidpin.Disconnected:
+			a.note("the device was disconnected; waiting for it to come back")
+		case hidpin.StatusReceived:
+			missed += e.Missed
+			if a.opts.json {
+				if err := a.reportJSON(e, missed); err != nil {
+					return err
+				}
+				continue
+			}
+			if e.Missed > 0 {
+				fmt.Fprintf(a.stderr, "warning: missed %d status report(s)\n", e.Missed)
+			}
+			if e.Status.Overflow() {
+				fmt.Fprintln(a.stderr, "warning: the device dropped edge events (the history is incomplete)")
+			}
+			if a.opts.all && len(e.Status.Events) == 0 && e.Status.Reason&hidpin.ReasonHostRequest == 0 {
+				fmt.Fprintf(a.stdout, "seq=%d reason=%s\n", e.Status.Seq, strings.Join(e.Status.Reason.Names(), ","))
+			}
+		case hidpin.InitialOnOff:
+			if !a.opts.json {
+				gpios := make([]int, 0, len(e.On))
+				for gpio := range e.On {
+					gpios = append(gpios, gpio)
+				}
+				sort.Ints(gpios)
+				parts := make([]string, len(gpios))
+				for i, gpio := range gpios {
+					parts[i] = fmt.Sprintf("GPIO%d=%s", gpio, onOffName(e.On[gpio]))
+				}
+				fmt.Fprintln(a.stdout, strings.Join(parts, " "))
+			}
+		case hidpin.OnOffChange:
+			if !a.opts.json {
+				a.printChange(e)
+			}
+		case hidpin.PinConfigChanged:
+			if !a.opts.json {
+				fmt.Fprintln(a.stdout, "the pin configuration changed")
+			}
+		case hidpin.OutputsReset:
+			if !a.opts.json {
+				cause := e.Cause.String()
+				if e.Cause == hidpin.OutputResetSuspend {
+					cause = "USB disconnect or suspend"
+				}
+				fmt.Fprintf(a.stdout, "outputs returned to their initial level (%s)\n", cause)
+			}
 		}
 	}
-	return nil
+	return w.Err()
 }
 
 func (a *app) run(ctx context.Context) error {
@@ -570,7 +606,7 @@ func (a *app) run(ctx context.Context) error {
 	case "info":
 		return withDevice(a.cmdInfo)
 	case "watch":
-		return withDevice(func(d *hidpin.Device) error { return a.cmdWatch(ctx, d) })
+		return a.cmdWatch(ctx)
 	case "config":
 		if len(rest) == 0 {
 			return usageError{message: "config: the following arguments are required: get or set", showHelp: true}
