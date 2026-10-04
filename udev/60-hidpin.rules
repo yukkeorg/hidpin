@@ -6,7 +6,7 @@
 #   (then unplug and replug the board)
 #
 # Two rules, because there are two ways to reach a HID device on Linux:
-#   - hidraw: opens /dev/hidrawN         -> first rule; this is what host/ uses
+#   - hidraw: opens /dev/hidrawN         -> first rule; used by the Python and Go code
 #   - libusb: opens /dev/bus/usb/BBB/DDD -> second rule; used by the hidapi wheels
 #     on PyPI (HIDPIN_BACKEND=hidapi) and by other libusb-based tools.
 #

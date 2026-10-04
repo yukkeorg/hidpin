@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yukkeorg/hidpin/host-go/hidpin"
-	"github.com/yukkeorg/hidpin/host-go/hidpin/hidpintest"
+	"github.com/yukkeorg/hidpin/hidpin"
+	"github.com/yukkeorg/hidpin/hidpin/hidpintest"
 )
 
 const (

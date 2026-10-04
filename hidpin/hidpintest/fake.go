@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/yukkeorg/hidpin/host-go/hidpin"
+	"github.com/yukkeorg/hidpin/hidpin"
 )
 
 // PicoAvailable is the available-GPIO mask of a Raspberry Pi Pico.

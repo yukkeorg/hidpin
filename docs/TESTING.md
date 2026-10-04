@@ -2,7 +2,7 @@
 
 **English** | [日本語](TESTING-ja.md)
 
-How to check on real hardware what the unit tests on a PC (`firmware/test`, `host/tests`) cannot.
+How to check on real hardware what the unit tests on a PC (`firmware/test`, `python/tests`, and the Go tests in `hidpin/`) cannot.
 Terms follow [CONTEXT.md](../CONTEXT.md) (written in Japanese), and the report contents are in [PROTOCOL.md](./PROTOCOL.md).
 
 ## What you need
@@ -16,7 +16,7 @@ Terms follow [CONTEXT.md](../CONTEXT.md) (written in Japanese), and the report c
   ```
   sudo cp udev/60-hidpin.rules /etc/udev/rules.d/
   sudo udevadm control --reload-rules && sudo udevadm trigger
-  uv tool install ./host        # to try without installing: cd host && uv run hidpin ...
+  uv tool install ./python      # to try without installing: cd python && uv run hidpin ...
   ```
 
   Replug the board after installing the rule. While it stays plugged in, its permissions do not change and

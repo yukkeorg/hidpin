@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yukkeorg/hidpin/host-go/hidpin"
+	"github.com/yukkeorg/hidpin/hidpin"
 )
 
 // ErrGone is what the transports of an unplugged board return, like ENODEV from hidraw.

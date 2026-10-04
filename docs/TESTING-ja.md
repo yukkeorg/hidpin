@@ -2,7 +2,7 @@
 
 [English](TESTING.md) | **日本語**
 
-PC 上のユニットテスト（`firmware/test`、`host/tests`）では確かめられない部分を、実機で確認する手順。
+PC 上のユニットテスト（`firmware/test`、`python/tests`、`hidpin/` の Go のテスト）では確かめられない部分を、実機で確認する手順。
 用語は [CONTEXT.md](../CONTEXT.md)、レポートの内容は [PROTOCOL-ja.md](./PROTOCOL-ja.md) を参照。
 
 ## 用意するもの
@@ -16,7 +16,7 @@ PC 上のユニットテスト（`firmware/test`、`host/tests`）では確か�
   ```
   sudo cp udev/60-hidpin.rules /etc/udev/rules.d/
   sudo udevadm control --reload-rules && sudo udevadm trigger
-  uv tool install ./host        # インストールせずに試すなら cd host && uv run hidpin ...
+  uv tool install ./python      # インストールせずに試すなら cd python && uv run hidpin ...
   ```
 
   ルールを入れた後にボードを挿し直す。挿したままだと権限が変わらず、

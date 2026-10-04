@@ -69,18 +69,19 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 To get the command itself, use any of:
 
 ```
-uv tool install ./host      # hidpin available everywhere
-pipx install ./host         # the same
-pip install ./host          # into the current Python environment
+uv tool install ./python      # hidpin available everywhere
+pipx install ./python         # the same
+pip install ./python          # into the current Python environment
 ```
 
-To try it without installing, run `cd host && uv run hidpin list`.
+To try it without installing, run `cd python && uv run hidpin list`.
 
-A Go version of the same command and a Go driver library live in [`host-go`](host-go/README.md)
-(`go install github.com/yukkeorg/hidpin/host-go/cmd/hidpin@latest`, Linux only).
+A Go version of the same command and a Go driver library live in [`hidpin/`](hidpin/README.md)
+(`go install github.com/yukkeorg/hidpin/cmd/hidpin@latest`, `import "github.com/yukkeorg/hidpin/hidpin"`,
+Linux only).
 
 On Linux the library talks to `/dev/hidraw*` directly, so no extra library is needed. Windows
-and macOS need hidapi (`pip install './host[hidapi]'`). `HIDPIN_BACKEND=hidraw` or
+and macOS need hidapi (`pip install './python[hidapi]'`). `HIDPIN_BACKEND=hidraw` or
 `HIDPIN_BACKEND=hidapi` picks one explicitly. The hidapi wheels on PyPI are built with the
 libusb backend, which fails with `OSError: open failed` when it cannot take the interface from
 the kernel driver — hence hidraw being the default on Linux.
@@ -137,8 +138,10 @@ protocol/vectors.json test data both the C and the Python tests read
 firmware/core/        the core, free of SDK dependencies (reports, debouncing, events, engine)
 firmware/app/         the firmware built on the Pico SDK and TinyUSB
 firmware/test/        unit tests for the core, run on a PC
-host/                 the Python library and CLI
-host-go/              the Go library and CLI (Linux, no cgo), see host-go/README.md
+python/               the Python library and CLI (package hidpin)
+hidpin/               the Go library (package hidpin; Linux, no cgo), see hidpin/README.md
+cmd/hidpin/           the Go CLI
+go.mod                the Go module github.com/yukkeorg/hidpin
 udev/                 the Linux udev rule
 ```
 
@@ -154,7 +157,8 @@ cmake -S firmware/test -B build/core-tests -G Ninja
 cmake --build build/core-tests && ctest --test-dir build/core-tests
 
 # tests for the host side
-cd host && uv run --group dev pytest
+cd python && uv run --group dev pytest    # Python
+go test ./...                             # Go, at the repository root
 ```
 
 ## About the USB identifiers

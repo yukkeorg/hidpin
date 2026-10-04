@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/yukkeorg/hidpin/host-go/hidpin"
-	"github.com/yukkeorg/hidpin/host-go/hidpin/hidpintest"
+	"github.com/yukkeorg/hidpin/hidpin"
+	"github.com/yukkeorg/hidpin/hidpin/hidpintest"
 )
 
 // This example runs against the fake device from hidpintest; with a board attached, use

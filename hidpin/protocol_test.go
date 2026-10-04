@@ -81,7 +81,7 @@ type vectorFile struct {
 
 func loadVectors(t *testing.T) vectorFile {
 	t.Helper()
-	data, err := os.ReadFile("../../protocol/vectors.json")
+	data, err := os.ReadFile("../protocol/vectors.json")
 	if err != nil {
 		t.Fatalf("read vectors: %v", err)
 	}

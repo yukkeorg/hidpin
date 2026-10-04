@@ -1,30 +1,30 @@
 # hidpin for Go
 
 A Go driver library and CLI for hidpin devices, the Go counterpart of the Python code in
-[`../host`](../host). It speaks the protocol in [docs/PROTOCOL.md](../docs/PROTOCOL.md) and is
+[`../python`](../python). It speaks the protocol in [docs/PROTOCOL.md](../docs/PROTOCOL.md) and is
 tested against the same [`protocol/vectors.json`](../protocol/vectors.json).
 
 - **Linux only.** It talks to `/dev/hidraw*` directly: pure Go, no cgo, no hidapi, no other
   dependency. On other systems `FindDevices` and `Open` return `ErrUnsupportedPlatform`.
-- Module `github.com/yukkeorg/hidpin/host-go`, Go 1.22 or newer.
+- Module `github.com/yukkeorg/hidpin` (`go.mod` at the repository root), Go 1.22 or newer. The
+  library is the package `github.com/yukkeorg/hidpin/hidpin` in this directory.
 
 | Package | Contents |
 |---|---|
 | `hidpin` | the driver library: reports, device access, pin configuration, polarity, and `Watch` for long-running programs |
 | `hidpin/hidpintest` | a fake device and a simulated bus of boards, to test code that uses the library without hardware |
-| `cmd/hidpin` | the `hidpin` command |
-| `internal/hidraw` | the Linux hidraw backend (sysfs enumeration, HIDIOC* ioctls) |
+| `cmd/hidpin` | the `hidpin` command (at the repository root) |
+| `hidpin/internal/hidraw` | the Linux hidraw backend (sysfs enumeration, HIDIOC* ioctls) |
 
 ## The command
 
 ```
-go install github.com/yukkeorg/hidpin/host-go/cmd/hidpin@latest
+go install github.com/yukkeorg/hidpin/cmd/hidpin@latest
 ```
 
-or, from a checkout (plain `go build ./cmd/hidpin` clashes with the `hidpin/` directory):
+or, from the root of a checkout (plain `go build ./cmd/hidpin` clashes with the `hidpin/` directory):
 
 ```
-cd host-go
 go install ./cmd/hidpin            # into $GOPATH/bin
 go build -o bin/hidpin ./cmd/hidpin
 ```
@@ -51,7 +51,7 @@ replug the board). A firmware built with other USB ids is found with `HIDPIN_VID
 ## The library
 
 ```go
-import "github.com/yukkeorg/hidpin/host-go/hidpin"
+import "github.com/yukkeorg/hidpin/hidpin"
 
 device, err := hidpin.Open("") // the only connected board, or pass its serial number
 if err != nil {
@@ -154,7 +154,8 @@ To test a program that uses `Watch`, pass `hidpintest.NewBus(hidpintest.NewBoard
 
 ## Tests
 
+At the repository root:
+
 ```
-cd host-go
 go test ./...
 ```

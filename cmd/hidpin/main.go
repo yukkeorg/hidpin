@@ -1,5 +1,5 @@
 // Command hidpin watches and configures hidpin devices. It is the Go counterpart of the Python
-// CLI in host/ and takes the same commands and options; unlike it, watch keeps going when the
+// CLI in python/ and takes the same commands and options; unlike it, watch keeps going when the
 // device is unplugged and plugged in again:
 //
 //	hidpin [--json] list
@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yukkeorg/hidpin/host-go/hidpin"
+	"github.com/yukkeorg/hidpin/hidpin"
 )
 
 // openDevice, findDevices, watchBus and scanInterval are variables so tests can replace the

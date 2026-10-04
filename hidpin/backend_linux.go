@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/yukkeorg/hidpin/host-go/internal/hidraw"
+	"github.com/yukkeorg/hidpin/hidpin/internal/hidraw"
 )
 
 // FindDevices lists the connected hidpin devices.

@@ -59,18 +59,19 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 コマンドとして使うなら、次のどれかで入れる。
 
 ```
-uv tool install ./host      # hidpin コマンドがどこからでも使える
-pipx install ./host         # 同上
-pip install ./host          # 今の Python 環境に入れる
+uv tool install ./python      # hidpin コマンドがどこからでも使える
+pipx install ./python         # 同上
+pip install ./python          # 今の Python 環境に入れる
 ```
 
-インストールせずに試すなら `cd host && uv run hidpin list` のように実行する。
+インストールせずに試すなら `cd python && uv run hidpin list` のように実行する。
 
-同じコマンドの Go 版と、Go 用のドライバライブラリが [`host-go`](host-go/README.md) にある
-（`go install github.com/yukkeorg/hidpin/host-go/cmd/hidpin@latest`、Linux 専用）。
+同じコマンドの Go 版と、Go 用のドライバライブラリが [`hidpin/`](hidpin/README.md) にある
+（`go install github.com/yukkeorg/hidpin/cmd/hidpin@latest`、`import "github.com/yukkeorg/hidpin/hidpin"`、
+Linux 専用）。
 
 Linux では `/dev/hidraw*` を直接使うので、追加のライブラリは要らない。
-Windows と macOS では hidapi が必要になる（`pip install './host[hidapi]'`）。
+Windows と macOS では hidapi が必要になる（`pip install './python[hidapi]'`）。
 `HIDPIN_BACKEND=hidraw` または `HIDPIN_BACKEND=hidapi` で明示的に選べる。
 hidapi の PyPI ホイールは libusb 版で、カーネルドライバを奪えないと
 `OSError: open failed` になることがあるため、Linux では hidraw を既定にしている。
@@ -124,8 +125,10 @@ protocol/vectors.json C と Python の両方のテストが参照するテスト
 firmware/core/        SDK に依存しないコア（レポート、チャタリング除去、イベント、エンジン）
 firmware/app/         Pico SDK + TinyUSB のファームウェア
 firmware/test/        コアのユニットテスト（PC 上で実行）
-host/                 Python ライブラリと CLI
-host-go/              Go のライブラリと CLI（Linux 専用、cgo 不要）。host-go/README.md を参照
+python/               Python のライブラリと CLI（パッケージ hidpin）
+hidpin/               Go のライブラリ（パッケージ hidpin、Linux 専用、cgo 不要）。hidpin/README.md を参照
+cmd/hidpin/           Go 版の CLI
+go.mod                Go のモジュール github.com/yukkeorg/hidpin
 udev/                 Linux の udev ルール
 ```
 
@@ -143,7 +146,8 @@ cmake -S firmware/test -B build/core-tests -G Ninja
 cmake --build build/core-tests && ctest --test-dir build/core-tests
 
 # ホスト側のテスト
-cd host && uv run --group dev pytest
+cd python && uv run --group dev pytest    # Python
+go test ./...                             # Go（リポジトリ直下で）
 ```
 
 ## USB の識別番号について
