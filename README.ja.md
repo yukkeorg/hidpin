@@ -120,7 +120,6 @@ docs/CONCEPT.md       最初の構想
 docs/PROTOCOL.md      USB-HID プロトコル版 1 の仕様（正）
 docs/TESTING.md       実機での確認手順
 docs/adr/             設計判断の記録
-docs/pid-codes/       USB の PID を pid.codes に登録したときの記録
 protocol/vectors.json C と Python の両方のテストが参照するテストデータ
 firmware/core/        SDK に依存しないコア（レポート、チャタリング除去、イベント、エンジン）
 firmware/app/         Pico SDK + TinyUSB のファームウェア

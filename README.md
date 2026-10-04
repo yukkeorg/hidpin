@@ -133,7 +133,6 @@ docs/CONCEPT.md       the original concept
 docs/PROTOCOL.md      the USB-HID protocol version 1 (the authority)
 docs/TESTING.md       what to check on real hardware
 docs/adr/             records of design decisions
-docs/pid-codes/       the pid.codes registration for the USB product ID
 protocol/vectors.json test data both the C and the Python tests read
 firmware/core/        the core, free of SDK dependencies (reports, debouncing, events, engine)
 firmware/app/         the firmware built on the Pico SDK and TinyUSB
