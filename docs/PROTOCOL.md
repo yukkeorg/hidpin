@@ -1,60 +1,62 @@
-# hidpin プロトコル仕様（プロトコル版 1）
+# hidpin protocol specification (protocol version 1)
 
-> **状態: 草案（第 2 版、レビュー待ち）**
+**English** | [日本語](PROTOCOL-ja.md)
 
-**デバイス**と**ホスト**の間で交わす USB-HID レポートの形式と振る舞いを定める。
-用語は [CONTEXT.md](../CONTEXT.md) に従う。
-この文書が正である。
-テストベクタ `protocol/vectors.json`（作成予定）はこの文書から導出し、両者が食い違う場合はこの文書を優先して、ベクタを修正する。
+> **Status: draft (second revision, awaiting review)**
 
-## 1. USB 上の識別
+This document defines the format and the behaviour of the USB-HID reports exchanged between the **device** and the **host**.
+Terms follow [CONTEXT.md](../CONTEXT.md) (written in Japanese).
+This document is the authority.
+The test vectors in `protocol/vectors.json` are derived from it; when the two disagree, this document wins and the vectors are fixed.
 
-| 項目 | 値 |
+## 1. Identification on USB
+
+| Item | Value |
 |---|---|
-| VID:PID | `1209:6870`（pid.codes が hidpin に割り当てた番号。<https://pid.codes/1209/6870/>） |
-| Manufacturer 文字列 | `yukke.org` |
-| Product 文字列 | `hidpin` |
-| Serial 文字列 | **シリアル番号**。ボード固有 ID を大文字 16 進で表した 16 文字（`[0-9A-F]{16}`、先頭の 0 を省略しない） |
-| HID インターフェース | `bInterfaceClass` = 3、`bInterfaceSubClass` = 0、`bInterfaceProtocol` = 0、`bcdHID` = `0x0111` |
-| エンドポイント | Interrupt IN 1 本、Interrupt OUT 1 本。いずれも `wMaxPacketSize` = 64、`bInterval` = 1 |
-| Top-level collection | Usage Page `0xFF00`（Vendor-defined）、Usage `0x01` |
+| VID:PID | `1209:6870` (allocated to hidpin by pid.codes, <https://pid.codes/1209/6870/>) |
+| Manufacturer string | `yukke.org` |
+| Product string | `hidpin` |
+| Serial string | The **serial number**: the board's unique ID as 16 upper-case hexadecimal digits (`[0-9A-F]{16}`, leading zeros kept) |
+| HID interface | `bInterfaceClass` = 3, `bInterfaceSubClass` = 0, `bInterfaceProtocol` = 0, `bcdHID` = `0x0111` |
+| Endpoints | One Interrupt IN and one Interrupt OUT, both with `wMaxPacketSize` = 64 and `bInterval` = 1 |
+| Top-level collection | Usage Page `0xFF00` (vendor-defined), Usage `0x01` |
 
-**ホスト**は VID:PID に加え、Usage Page `0xFF00` / Usage `0x01` のコレクションであることを確認してから開く。
-デバッグビルドでは CDC インターフェースが追加されるが、HID コレクションの内容は変わらない。
+Besides the VID:PID, the **host** checks that the collection is Usage Page `0xFF00` / Usage `0x01` before opening it.
+A debug build adds a CDC interface; the HID collection stays the same.
 
-## 2. 共通規則
+## 2. Common rules
 
-- 複数バイトの整数はすべて**リトルエンディアン**。
-- GPIO を表すビットマスクは `u32` で、ビット *n* が GPIO*n* に対応する。プロトコル版 1 ではビット 30・31 は常に 0。
-- 以下のバイト表の「オフセット」は、レポート ID を**除いた**ペイロード先頭からの位置。
-- 予約フィールド・予約ビットは、送信側が 0 を書き、受信側は無視する。
-- 時刻はすべて、**デバイス**の電源投入からのマイクロ秒（µs）を基準とする。
+- All multi-byte integers are **little-endian**.
+- A GPIO bitmask is a `u32` whose bit *n* stands for GPIO*n*. In protocol version 1, bits 30 and 31 are always 0.
+- The "offset" in the byte tables below counts from the start of the payload, **excluding** the report ID.
+- Reserved fields and reserved bits are written as 0 by the sender and ignored by the receiver.
+- All times are microseconds (µs) since the **device** was powered on.
 
-## 3. レポート一覧
+## 3. Reports
 
-| レポート ID | 種別 | 名前 | ペイロード長 | 経路 |
+| Report ID | Type | Name | Payload length | Path |
 |---|---|---|---|---|
-| `0x01` | Input | **状態通知** | 63 | Interrupt IN、および Get_Report(Input) の応答 |
-| `0x02` | Feature | **デバイス情報** | 63 | Get_Report(Feature) |
-| `0x03` | Feature | **ピン設定** | 63 | Get_Report(Feature) / Set_Report(Feature) |
-| `0x04` | Output | 出力指示 | 8 | Interrupt OUT（Set_Report(Output) でも同じ扱い） |
+| `0x01` | Input | **Status report** | 63 | Interrupt IN, and the reply to Get_Report(Input) |
+| `0x02` | Feature | **Device information** | 63 | Get_Report(Feature) |
+| `0x03` | Feature | **Pin configuration** | 63 | Get_Report(Feature) / Set_Report(Feature) |
+| `0x04` | Output | Output command | 8 | Interrupt OUT (Set_Report(Output) is treated the same) |
 
-Input と Feature は、レポート ID を含めて 64 バイトにそろえる。
-Windows では Feature の取得に「コレクション内で最長の Feature 長」のバッファを使うことが正しいとされるため、Feature はすべて同じ長さにしている。
+Input and Feature reports are 64 bytes long including the report ID.
+On Windows, the correct buffer for reading a Feature report is said to be "the length of the longest Feature report in the collection", so all Feature reports have the same length.
 
-### 3.1 ホスト API に渡す長さ
+### 3.1 Lengths passed to host APIs
 
-hidapi / hidraw では、ペイロードの前にレポート ID の 1 バイトが付く。
+With hidapi / hidraw, the payload is preceded by one byte holding the report ID.
 
-| 操作 | 渡す・受け取る長さ（レポート ID 込み） |
+| Operation | Length passed or received (including the report ID) |
 |---|---|
-| Interrupt IN の読み取り（`read`） | 64 |
+| Reading Interrupt IN (`read`) | 64 |
 | `get_input_report(0x01, …)` | 64 |
-| `get_feature_report(0x02 または 0x03, …)` | 64 |
-| `send_feature_report`（ID `0x03`） | 64 |
-| 出力指示の送信（`write`） | 9 |
+| `get_feature_report(0x02 or 0x03, …)` | 64 |
+| `send_feature_report` (ID `0x03`) | 64 |
+| Sending an output command (`write`) | 9 |
 
-### 3.2 レポートディスクリプタ（47 バイト）
+### 3.2 Report descriptor (47 bytes)
 
 ```
 Usage Page (0xFF00)            06 00 FF
@@ -82,226 +84,226 @@ Collection (Application)       A1 01
 End Collection                 C0
 ```
 
-## 4. 状態通知（ID `0x01`、Input、63 バイト）
+## 4. Status report (ID `0x01`, Input, 63 bytes)
 
-| オフセット | 型 | 名前 | 内容 |
+| Offset | Type | Name | Contents |
 |---|---|---|---|
-| 0 | `u16` | `seq` | シーケンス番号（4.3） |
-| 2 | `u8` | `reason` | 発生理由のビットフラグ（4.1） |
-| 3 | `u8` | `flags` | 補助フラグ（4.2） |
-| 4 | `u8` | `event_count` | 含まれる**エッジイベント**の数（0–7） |
-| 5 | `u8`×3 | — | 予約 |
-| 8 | `u32` | `monitored` | **監視ピン**のビットマスク |
-| 12 | `u32` | `outputs` | **出力ピン**のビットマスク |
-| 16 | `u32` | `levels` | **監視ピン**の**ピンレベル**と**出力ピン**の**出力レベル**（HIGH = 1）。どちらでもないビットは 0 |
-| 20 | `u64` | `timestamp_us` | この**状態通知**の内容を組み立てた時刻 |
-| 28 | 5 バイト×7 | `events[0..6]` | **エッジイベント**（4.4）。先頭から `event_count` 個が有効で、残りは 0 |
+| 0 | `u16` | `seq` | Sequence number (4.3) |
+| 2 | `u8` | `reason` | Bit flags saying why the report was sent (4.1) |
+| 3 | `u8` | `flags` | Auxiliary flags (4.2) |
+| 4 | `u8` | `event_count` | Number of **edge events** included (0–7) |
+| 5 | `u8`×3 | — | Reserved |
+| 8 | `u32` | `monitored` | Bitmask of the **monitored pins** |
+| 12 | `u32` | `outputs` | Bitmask of the **output pins** |
+| 16 | `u32` | `levels` | The **pin levels** of the **monitored pins** and the **output levels** of the **output pins** (HIGH = 1). Other bits are 0 |
+| 20 | `u64` | `timestamp_us` | When the contents of this **status report** were assembled |
+| 28 | 5 bytes × 7 | `events[0..6]` | **Edge events** (4.4). The first `event_count` are valid; the rest are 0 |
 
-### 4.1 `reason`（ビットフラグ）
+### 4.1 `reason` (bit flags)
 
-送信を待つ間に複数の理由が生じた場合は、該当するビットをすべて立てる。
-Interrupt IN で送る**状態通知**では、少なくとも 1 ビットが立つ。
+When several reasons arise while a report waits to be sent, all of the matching bits are set.
+A **status report** sent on Interrupt IN has at least one bit set.
 
-| ビット | 値 | 名前 | 意味 |
+| Bit | Value | Name | Meaning |
 |---|---|---|---|
-| 0 | `0x01` | `LEVEL_CHANGED` | **エッジイベント**を 1 個以上含む |
-| 1 | `0x02` | `OUTPUT_APPLIED` | 出力指示（ID `0x04`）を適用した。**出力レベル**が変わらなかった場合も立つ |
-| 2 | `0x04` | `CONFIG_CHANGED` | **ピン設定**が変わった（6.4） |
-| 3 | `0x08` | `PERIODIC` | 直前の Interrupt IN 送信から 1000 ms が経過した |
-| 4 | `0x10` | `OUTPUT_RESET` | USB の切断・サスペンド・バスリセットにより、**出力ピン**を**初期出力レベル**に戻した（7.2） |
-| 7 | `0x80` | `HOST_REQUEST` | Get_Report(Input) の応答である。このビットが立つときは他のビットを立てない |
+| 0 | `0x01` | `LEVEL_CHANGED` | Includes one or more **edge events** |
+| 1 | `0x02` | `OUTPUT_APPLIED` | An output command (ID `0x04`) was applied. Set even when no **output level** changed |
+| 2 | `0x04` | `CONFIG_CHANGED` | The **pin configuration** changed (6.4) |
+| 3 | `0x08` | `PERIODIC` | 1000 ms have passed since the last Interrupt IN transfer |
+| 4 | `0x10` | `OUTPUT_RESET` | The **output pins** were returned to their **initial output levels** because USB was disconnected, suspended or reset (7.2) |
+| 7 | `0x80` | `HOST_REQUEST` | This is the reply to Get_Report(Input). When this bit is set, no other bit is |
 
 ### 4.2 `flags`
 
-| ビット | 名前 | 意味 |
+| Bit | Name | Meaning |
 |---|---|---|
-| 0 | `OVERFLOW` | 直前の**状態通知**以降に、**デバイス**が保持しきれず捨てた**エッジイベント**がある（4.5） |
-| 1 | `MORE_EVENTS` | 未送信の**エッジイベント**が残っており、続けて**状態通知**を送る |
+| 0 | `OVERFLOW` | Since the previous **status report**, the **device** has dropped **edge events** it could not hold (4.5) |
+| 1 | `MORE_EVENTS` | Unsent **edge events** remain, and more **status reports** follow |
 
 ### 4.3 `seq`
 
-- **デバイス**は起動時に `next_seq` = 0 とする。
-- Interrupt IN へ**状態通知**を渡すことに成功したとき、その**状態通知**の `seq` を `next_seq` とし、`next_seq` を 1 増やす（65535 の次は 0）。
-- Get_Report(Input) の応答は `next_seq` を変えず、直近に Interrupt IN へ渡した `seq` を入れる（未送信なら 0）。
-- USB のバスリセットや再接続では `next_seq` を戻さない。戻すのはファームウェアの再起動時だけ。
-- `seq` の飛びは、送信済みの**状態通知**を**ホスト**が読み落としたことを示す。**デバイス**が捨てた**エッジイベント**は、`OVERFLOW` で示す。
+- The **device** starts with `next_seq` = 0.
+- When a **status report** is successfully handed to Interrupt IN, its `seq` is `next_seq`, and `next_seq` is incremented (0 follows 65535).
+- The reply to Get_Report(Input) does not change `next_seq`; it carries the `seq` most recently handed to Interrupt IN (0 if none has been sent).
+- A USB bus reset or a reconnection does not reset `next_seq`; only a firmware restart does.
+- A gap in `seq` means that the **host** missed a **status report** that was sent. **Edge events** dropped by the **device** are signalled by `OVERFLOW`.
 
-### 4.4 エッジイベント（5 バイト）
+### 4.4 Edge event (5 bytes)
 
-| オフセット | 型 | 名前 | 内容 |
+| Offset | Type | Name | Contents |
 |---|---|---|---|
-| 0 | `u8` | `pin` | ビット 0–4: GPIO 番号。ビット 5–6: 予約。ビット 7: 変化後の**ピンレベル**（HIGH = 1） |
-| 1 | `u32` | `age_us` | この**状態通知**の `timestamp_us` から、変化が始まった時刻までさかのぼる量。`0xFFFFFFFF` は「その値以上前」を表す（頭打ち） |
+| 0 | `u8` | `pin` | Bits 0–4: GPIO number. Bits 5–6: reserved. Bit 7: the **pin level** after the change (HIGH = 1) |
+| 1 | `u32` | `age_us` | How far back from this **status report**'s `timestamp_us` the change started. `0xFFFFFFFF` means "at least this long ago" (saturated) |
 
-変化が始まった時刻は `timestamp_us - age_us` で求める（頭打ちでない場合）。
-`events` は変化が始まった時刻の古い順に並ぶ。
+The time the change started is `timestamp_us - age_us` (unless saturated).
+`events` are ordered by the time the change started, oldest first.
 
-### 4.5 送信規則
+### 4.5 Sending rules
 
-- **エッジイベント**は、確定した順に**デバイス**内の待ち行列（32 個）に入る。
-- 待ち行列が一杯のときに確定した**エッジイベント**は捨て、`OVERFLOW` を立てる予定にする。
-- **状態通知**を組み立てるとき、待ち行列の先頭から最大 7 個を取り出して `events` に入れる。
-  - まだ待ち行列に残っていれば `MORE_EVENTS` を立て、エンドポイントが空き次第、続きの**状態通知**を送る。
-  - `levels` の**監視ピン**のビットは、その**状態通知**に含めた最後の**エッジイベント**までを反映した値とする。
-    待ち行列に残っている**エッジイベント**は反映しない。
-  - 待ち行列が空になった**状態通知**では、`levels` は現在の確定した**ピンレベル**と一致する。
-    `OVERFLOW` はこの**状態通知**に立てる。捨てた**エッジイベント**の影響も、この `levels` には反映される。
-- `levels` の**出力ピン**のビットと、`monitored` / `outputs` は、常に組み立て時点の値とする。
-- エンドポイントが送信中で送れない間に複数の理由が生じた場合も、1 回の**状態通知**にまとめる（`reason` を OR する）。
-- USB サスペンド中は送らない（リモートウェイクアップは使わない）。
+- **Edge events** enter a queue in the **device** (32 entries) in the order they are confirmed.
+- An **edge event** confirmed while the queue is full is dropped, and `OVERFLOW` is scheduled to be set.
+- When a **status report** is assembled, up to 7 events are taken from the head of the queue into `events`.
+  - If events remain in the queue, `MORE_EVENTS` is set, and the next **status report** is sent as soon as the endpoint is free.
+  - The bits of `levels` for **monitored pins** reflect the changes up to the last **edge event** included in that **status report**.
+    **Edge events** still in the queue are not reflected.
+  - In the **status report** that empties the queue, `levels` matches the current confirmed **pin levels**.
+    `OVERFLOW` is set on this **status report**. The effect of the dropped **edge events** is reflected in this `levels` as well.
+- The bits of `levels` for **output pins**, and `monitored` / `outputs`, always hold the values at the time of assembly.
+- Reasons that arise while the endpoint is busy and cannot send are combined into one **status report** (`reason` is ORed).
+- Nothing is sent while USB is suspended (remote wake-up is not used).
 
-### 4.6 Get_Report(Input) の応答
+### 4.6 Reply to Get_Report(Input)
 
-- `reason` = `HOST_REQUEST`、`event_count` = 0 とし、待ち行列からは取り出さない。
-- `levels` は現在の確定した**ピンレベル**と**出力レベル**。待ち行列に未送信の**エッジイベント**があれば `MORE_EVENTS` を立てる。
-- `OVERFLOW` は立てない（Interrupt IN 側で伝える）。
+- `reason` = `HOST_REQUEST` and `event_count` = 0. Nothing is taken from the queue.
+- `levels` holds the current confirmed **pin levels** and **output levels**. If unsent **edge events** are in the queue, `MORE_EVENTS` is set.
+- `OVERFLOW` is not set (it is conveyed on Interrupt IN).
 
-## 5. デバイス情報（ID `0x02`、Feature、63 バイト）
+## 5. Device information (ID `0x02`, Feature, 63 bytes)
 
-| オフセット | 型 | 名前 | 内容 |
+| Offset | Type | Name | Contents |
 |---|---|---|---|
-| 0 | `u8` | `protocol_version` | この文書の版。現在は `1` |
-| 1 | `u8` | `fw_major` | ファームウェア版（メジャー） |
-| 2 | `u8` | `fw_minor` | ファームウェア版（マイナー） |
-| 3 | `u8` | `fw_patch` | ファームウェア版（パッチ） |
-| 4 | `u8` | `board` | ボード種別（5.1） |
-| 5 | `u8` | `gpio_count` | **ピン設定**のエントリ数。プロトコル版 1 では常に `30` |
-| 6 | `u16` | `periodic_interval_ms` | `PERIODIC` の送信間隔。現在は `1000` |
-| 8 | `u32` | `available` | **利用可能GPIO**のビットマスク |
-| 12 | `u8` | `events_per_report` | 1 つの**状態通知**に入る**エッジイベント**の最大数。プロトコル版 1 では `7` |
-| 13 | `u8` | `event_queue_size` | **エッジイベント**の待ち行列の大きさ。現在は `32` |
-| 14 | `u8`×49 | — | 予約 |
+| 0 | `u8` | `protocol_version` | The version of this document. Currently `1` |
+| 1 | `u8` | `fw_major` | Firmware version (major) |
+| 2 | `u8` | `fw_minor` | Firmware version (minor) |
+| 3 | `u8` | `fw_patch` | Firmware version (patch) |
+| 4 | `u8` | `board` | Board type (5.1) |
+| 5 | `u8` | `gpio_count` | Number of entries in the **pin configuration**. Always `30` in protocol version 1 |
+| 6 | `u16` | `periodic_interval_ms` | Interval of `PERIODIC` reports. Currently `1000` |
+| 8 | `u32` | `available` | Bitmask of the **available GPIOs** |
+| 12 | `u8` | `events_per_report` | Maximum number of **edge events** in one **status report**. `7` in protocol version 1 |
+| 13 | `u8` | `event_queue_size` | Size of the **edge event** queue. Currently `32` |
+| 14 | `u8`×49 | — | Reserved |
 
-- Set_Report で送られた内容は無視する。
-- **ホスト**は `protocol_version` が自身の対応する版と異なる場合、以降の通信を行わずエラーとする。
+- Contents sent with Set_Report are ignored.
+- If `protocol_version` differs from the version the **host** supports, the **host** stops communicating and reports an error.
 
 ### 5.1 `board`
 
-| 値 | ボード | `available` |
+| Value | Board | `available` |
 |---|---|---|
-| 1 | Raspberry Pi Pico | `0x1C7FFFFF`（GPIO0–22, 26–28） |
-| 2 | Adafruit QT Py RP2040 | `0x3FD00078`（GPIO3–6, 20, 22–29） |
+| 1 | Raspberry Pi Pico | `0x1C7FFFFF` (GPIO0–22, 26–28) |
+| 2 | Adafruit QT Py RP2040 | `0x3FD00078` (GPIO3–6, 20, 22–29) |
 
-## 6. ピン設定（ID `0x03`、Feature、63 バイト）
+## 6. Pin configuration (ID `0x03`, Feature, 63 bytes)
 
-| オフセット | 型 | 名前 | 内容 |
+| Offset | Type | Name | Contents |
 |---|---|---|---|
-| 0 | `u8` | `result` | Get: 最後に処理した Set の結果（6.3）。Set: 0 を書く（無視される） |
-| 1 | `u8` | `result_gpio` | Get: `result` が GPIO に関する誤りのとき、その GPIO 番号。それ以外は `0xFF`。Set: `0xFF` を書く（無視される） |
-| 2 | `u8` | `request_id` | Set: **ホスト**が選ぶ 1–255 の値。Get: 最後に処理した Set の `request_id`（起動後に Set を受けていなければ 0） |
-| 3 + 2*n | `u8` | `mode[n]` | GPIO*n* の使い方（6.1）。n = 0..29 |
-| 4 + 2*n | `u8` | `param[n]` | GPIO*n* の付随値（6.1） |
+| 0 | `u8` | `result` | Get: the result of the last Set processed (6.3). Set: write 0 (ignored) |
+| 1 | `u8` | `result_gpio` | Get: the GPIO number when `result` is an error about a GPIO, otherwise `0xFF`. Set: write `0xFF` (ignored) |
+| 2 | `u8` | `request_id` | Set: a value from 1 to 255 chosen by the **host**. Get: the `request_id` of the last Set processed (0 if no Set has been received since start-up) |
+| 3 + 2*n | `u8` | `mode[n]` | How GPIO*n* is used (6.1). n = 0..29 |
+| 4 + 2*n | `u8` | `param[n]` | The parameter for GPIO*n* (6.1) |
 
-### 6.1 `mode` と `param`
+### 6.1 `mode` and `param`
 
-| `mode` | GPIO の使い方 | `param` の意味 |
+| `mode` | Use of the GPIO | Meaning of `param` |
 |---|---|---|
-| 0 | 使わない（入力無効・プルなし・出力無効） | 0 でなければならない |
-| 1 | 監視する・プルなし | **チャタリング除去時間**（0–255 ms） |
-| 2 | 監視する・プルアップ | **チャタリング除去時間**（0–255 ms） |
-| 3 | 監視する・プルダウン | **チャタリング除去時間**（0–255 ms） |
-| 4 | 出力する | **初期出力レベル**（0 = LOW、1 = HIGH） |
+| 0 | Unused (input disabled, no pull, output disabled) | Must be 0 |
+| 1 | Monitored, no pull | **Debounce time** (0–255 ms) |
+| 2 | Monitored, pull-up | **Debounce time** (0–255 ms) |
+| 3 | Monitored, pull-down | **Debounce time** (0–255 ms) |
+| 4 | Output | **Initial output level** (0 = LOW, 1 = HIGH) |
 
-**既定ピン設定**は、**利用可能GPIO**すべてが `mode` = 2・`param` = 20、それ以外が `mode` = 0・`param` = 0。
+In the **default pin configuration**, every **available GPIO** has `mode` = 2 and `param` = 20, and every other GPIO has `mode` = 0 and `param` = 0.
 
-### 6.2 Set の受理
+### 6.2 Accepting a Set
 
-- レポート ID を含めて 64 バイトを超える Set_Report は、USB 上で STALL され、何も変わらない。
-- それ以外の Set_Report は、USB 上では常に成功する（HID の SET_REPORT は、内容を理由に拒否できない）。
-  内容の誤りは `result` で伝える。
+- A Set_Report longer than 64 bytes including the report ID is STALLed on USB, and nothing changes.
+- Any other Set_Report always succeeds on USB (an HID SET_REPORT cannot be refused because of its contents).
+  Errors in the contents are reported through `result`.
 
-### 6.3 検証と `result`
+### 6.3 Validation and `result`
 
-**デバイス**は Set を次の手順で検証し、最初に見つかった誤りを `result` に記録する。
-誤りがあれば**ピン設定**全体を適用せず、以前の**ピン設定**を維持する。
-誤りの有無にかかわらず、`request_id` は記録する（ペイロード長が 3 未満のときは 0 として記録する）。
+The **device** validates a Set with the steps below and records the first error found in `result`.
+If there is an error, none of the **pin configuration** is applied, and the previous **pin configuration** stays.
+Whether or not there is an error, `request_id` is recorded (as 0 when the payload is shorter than 3 bytes).
 
 ```
-if ペイロード長 != 63:            result = 1; result_gpio = 0xFF; 終了
+if payload length != 63:          result = 1; result_gpio = 0xFF; stop
 for n in 0..29:
-    if mode[n] > 4:                result = 2; result_gpio = n; 終了
-    if GPIOn が利用可能GPIOでない and mode[n] != 0:
-                                   result = 3; result_gpio = n; 終了
+    if mode[n] > 4:                result = 2; result_gpio = n; stop
+    if GPIOn is not an available GPIO and mode[n] != 0:
+                                   result = 3; result_gpio = n; stop
     if mode[n] == 0 and param[n] != 0:
-                                   result = 4; result_gpio = n; 終了
+                                   result = 4; result_gpio = n; stop
     if mode[n] == 4 and param[n] > 1:
-                                   result = 5; result_gpio = n; 終了
-result = 0; result_gpio = 0xFF; 適用する
+                                   result = 5; result_gpio = n; stop
+result = 0; result_gpio = 0xFF; apply
 ```
 
-| `result` | 意味 |
+| `result` | Meaning |
 |---|---|
-| 0 | 適用した（起動後に Set を受けていない場合も 0） |
-| 1 | ペイロード長が 63 でない（Windows の hidapi は短い Set を 0 で埋めるため、OS によっては観測されない） |
-| 2 | `mode` が 0–4 の範囲外 |
-| 3 | **利用可能GPIO**でない GPIO に `mode` ≠ 0 を指定した |
-| 4 | `mode` = 0 の GPIO に `param` ≠ 0 を指定した |
-| 5 | `mode` = 4 の GPIO に `param` > 1 を指定した |
+| 0 | Applied (also 0 when no Set has been received since start-up) |
+| 1 | The payload length is not 63 (hidapi on Windows pads a short Set with zeros, so some operating systems never show this) |
+| 2 | `mode` is outside 0–4 |
+| 3 | `mode` ≠ 0 for a GPIO that is not an **available GPIO** |
+| 4 | `param` ≠ 0 for a GPIO with `mode` = 0 |
+| 5 | `param` > 1 for a GPIO with `mode` = 4 |
 
-Get の応答で、`result` / `result_gpio` / `request_id` は最後に処理した Set を表し、`mode` / `param` は現在適用中の**ピン設定**を表す。
-**デバイス**は、Set を受けてから次の Get までに、これらを反映済みにしなければならない。
+In the reply to a Get, `result` / `result_gpio` / `request_id` describe the last Set processed, and `mode` / `param` describe the **pin configuration** currently applied.
+After receiving a Set, the **device** must have these up to date by the next Get.
 
-**ホスト**は次の手順で Set の成否を判定する。
+The **host** decides whether a Set succeeded with the steps below.
 
-1. 直前の値と異なる 1–255 の `request_id` を選び、Set を送る。
-2. Get を行う。
-3. `request_id` が一致しなければ、別の**ホスト**のプロセスが同時に Set を送ったとみなし、競合としてエラーにする。
-4. `result` ≠ 0 なら、拒否としてエラーにする。
-5. `mode` / `param` が送った内容と一致しなければ、エラーにする。
+1. Choose a `request_id` from 1 to 255 that differs from the previous one, and send the Set.
+2. Do a Get.
+3. If `request_id` does not match, assume that another **host** process sent a Set at the same time, and fail with a conflict.
+4. If `result` ≠ 0, fail as rejected.
+5. If `mode` / `param` do not match what was sent, fail.
 
-### 6.4 適用時の振る舞い
+### 6.4 Behaviour when applying
 
-各 GPIO について、変更前と変更後の `mode` / `param` から次のように扱う。
+Each GPIO is handled according to its `mode` / `param` before and after the change.
 
-| 変更の種類 | 振る舞い |
+| Kind of change | Behaviour |
 |---|---|
-| `mode` と `param` がどちらも同じ | 何もしない。**監視ピン**なら確定済みの**ピンレベル**とチャタリング除去の途中経過を、**出力ピン**なら現在の**出力レベル**を引き継ぐ |
-| **監視ピン**のまま `param`（**チャタリング除去時間**）だけが変わる | 確定済みの**ピンレベル**を引き継ぎ、除去の途中経過は破棄する |
-| 監視以外から**監視ピン**になる、または**監視ピン**のままプルが変わる | 出力を無効にしてプルを設定し、約 1 ms 待ってから読んだ値を最初の**ピンレベル**として確定する。この確定は**エッジイベント**にしない |
-| 出力以外から**出力ピン**になる、または**出力ピン**のまま**初期出力レベル**が変わる | **初期出力レベル**を駆動する |
-| 使わない（`mode` = 0）になる | 入力・プル・出力をすべて無効にする |
+| `mode` and `param` both unchanged | Nothing happens. A **monitored pin** keeps its confirmed **pin level** and the debouncing in progress; an **output pin** keeps its current **output level** |
+| Still a **monitored pin**, and only `param` (the **debounce time**) changes | The confirmed **pin level** is kept, and the debouncing in progress is discarded |
+| Becomes a **monitored pin** from something else, or stays one with a different pull | The output is disabled and the pull is set. After waiting about 1 ms, the value read becomes the first confirmed **pin level**. This confirmation is not an **edge event** |
+| Becomes an **output pin** from something else, or stays one with a different **initial output level** | The **initial output level** is driven |
+| Becomes unused (`mode` = 0) | Input, pull and output are all disabled |
 
-- **監視ピン**でなくなった GPIO の除去の途中経過は破棄する。すでに待ち行列に入っている、その GPIO の**エッジイベント**は捨てない。
-- Set を受けた時点で `result` / `request_id` / `mode` / `param` を更新する。
-  `monitored` / `outputs` / `levels` は、上記の約 1 ms の待ちが終わってから、まとめて更新する。
-  それまでの Get_Report(Input) は、変更前の内容を返す。
-- 適用した**ピン設定**が変更前と異なる場合に限り、更新後に `CONFIG_CHANGED` の**状態通知**を送る。
+- For a GPIO that stops being a **monitored pin**, the debouncing in progress is discarded. Its **edge events** already in the queue are not dropped.
+- `result` / `request_id` / `mode` / `param` are updated when the Set is received.
+  `monitored` / `outputs` / `levels` are updated together after the wait of about 1 ms above.
+  Until then, Get_Report(Input) returns the contents from before the change.
+- Only when the applied **pin configuration** differs from the previous one, a `CONFIG_CHANGED` **status report** is sent after the update.
 
-## 7. 出力
+## 7. Outputs
 
-### 7.1 出力指示（ID `0x04`、Output、8 バイト）
+### 7.1 Output command (ID `0x04`, Output, 8 bytes)
 
-| オフセット | 型 | 名前 | 内容 |
+| Offset | Type | Name | Contents |
 |---|---|---|---|
-| 0 | `u32` | `mask` | 変更する GPIO のビットマスク |
-| 4 | `u32` | `value` | 変更後の**出力レベル**（HIGH = 1）。`mask` のビットが立っている GPIO だけが対象 |
+| 0 | `u32` | `mask` | Bitmask of the GPIOs to change |
+| 4 | `u32` | `value` | The new **output levels** (HIGH = 1). Only GPIOs whose bit is set in `mask` are affected |
 
-- ペイロード長が 8 でない出力指示は、全体を無視する（**状態通知**も送らない）。
-- `mask` のうち、**出力ピン**でない GPIO のビットは無視する。
-- 対象の**出力ピン**の**出力レベル**は、同時に切り替える。
-- 適用後、`OUTPUT_APPLIED` の**状態通知**を送る。対象の**出力ピン**が 1 本もなかった場合も送る。
+- An output command whose payload length is not 8 is ignored entirely (no **status report** is sent either).
+- Bits of `mask` for GPIOs that are not **output pins** are ignored.
+- The **output levels** of the affected **output pins** change at the same time.
+- After applying, an `OUTPUT_APPLIED` **status report** is sent, even when no **output pin** was affected.
 
-### 7.2 USB の切断・サスペンド・バスリセット
+### 7.2 USB disconnection, suspend and bus reset
 
-- これらを検知したとき、すべての**出力ピン**を**初期出力レベル**に戻す。**ピン設定**は変えない。
-- **出力ピン**が 1 本以上あった場合に限り、次に送る**状態通知**に `OUTPUT_RESET` を立てる。
-- この**状態通知**は再接続直後に送られるため、そのとき**ホスト**がデバイスを開いていなければ受け取れない。
-  **ホスト**は再接続後、必要なら**出力レベル**を設定し直す。現在の**出力レベル**は `levels` で確認できる。
+- When one of these is detected, every **output pin** returns to its **initial output level**. The **pin configuration** does not change.
+- Only if there was at least one **output pin**, `OUTPUT_RESET` is set on the next **status report** sent.
+- That **status report** is sent right after reconnection, so a **host** that has not opened the device by then does not receive it.
+  After reconnecting, the **host** sets the **output levels** again if needed. The current **output levels** can be read from `levels`.
 
-## 8. チャタリング除去
+## 8. Debouncing
 
-- **デバイス**は、**監視ピン**の電気的な変化を GPIO の割り込みで検知し、変化した時刻を µs で記録する。
-- 電気的な値が確定済みの**ピンレベル**と異なる状態が、最後の変化から `param`（**チャタリング除去時間**）ミリ秒以上続いたとき、**ピンレベル**をその値に更新し、**エッジイベント**を 1 個作る。
-  - 確定は、条件を満たしてから 1 ms 以内に行う。
-  - **エッジイベント**の「変化が始まった時刻」は、この最後の変化の時刻とする。
-- 途中で確定済みの値に戻った場合は、経過時間を破棄する。**エッジイベント**は作らない。
-- **チャタリング除去時間**が 0 のときは、電気的な変化を検知するたびに**ピンレベル**を更新し、**エッジイベント**を作る。
+- The **device** detects electrical changes on **monitored pins** with GPIO interrupts and records the time of each change in µs.
+- When the electrical value has differed from the confirmed **pin level** for at least `param` (the **debounce time**) milliseconds since the last change, the **pin level** is updated to that value and one **edge event** is created.
+  - The confirmation happens within 1 ms of the condition being met.
+  - The "time the change started" of the **edge event** is the time of that last change.
+- If the value goes back to the confirmed one in the meantime, the elapsed time is discarded, and no **edge event** is created.
+- When the **debounce time** is 0, every electrical change detected updates the **pin level** and creates an **edge event**.
 
-## 9. 版の管理
+## 9. Versioning
 
-- 互換性のない変更（フィールドの位置・意味・長さの変更、レポート ID の変更、GPIO 数の拡張）を行うときは `protocol_version` を増やす。
-- どの版でも、**デバイス情報**のレポート ID（`0x02`）、その長さ（ID 込み 64 バイト）、オフセット 0 の `protocol_version` は変えない。
-  **ホスト**はこれを手がかりに版を判定する。
-- 予約フィールドへの意味付けや、`reason` / `flags` / `board` の値の追加は、互換性のある変更として扱い、`protocol_version` を増やさない。
-  **ホスト**は、未知のビットや値を受け取っても通信を継続する。
-- 31 本以上の GPIO を持つチップ（RP2350B など）への対応は、プロトコル版 2 以降で扱う。
+- An incompatible change (moving a field, changing its meaning or length, changing a report ID, or adding GPIOs) increments `protocol_version`.
+- In every version, the report ID of the **device information** (`0x02`), its length (64 bytes including the ID) and `protocol_version` at offset 0 stay the same.
+  The **host** uses them to tell the version.
+- Giving meaning to reserved fields, or adding values to `reason` / `flags` / `board`, is a compatible change and does not increment `protocol_version`.
+  The **host** keeps communicating when it receives unknown bits or values.
+- Chips with 31 or more GPIOs (such as the RP2350B) are left to protocol version 2 or later.

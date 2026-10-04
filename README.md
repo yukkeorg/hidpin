@@ -23,7 +23,8 @@ pin or an applied output report; the LED then changes for about 100 ms.
 > bus reset. The Raspberry Pi Pico has not been tried yet. The procedure is in
 > [docs/TESTING.md](docs/TESTING.md).
 
-Most documents in this repository are written in Japanese; the protocol specification
+The documents in `docs/` are written in English, each with a Japanese translation next to it
+(`*-ja.md`); the glossary `CONTEXT.md` is in Japanese. The protocol specification
 ([docs/PROTOCOL.md](docs/PROTOCOL.md)) is the authority on the wire format.
 
 ## What it does
@@ -142,7 +143,8 @@ host-go/              the Go library and CLI (Linux, no cgo), see host-go/README
 udev/                 the Linux udev rule
 ```
 
-To change the protocol, edit `docs/PROTOCOL.md`, update `protocol/vectors.json`, then bring both
+To change the protocol, edit `docs/PROTOCOL.md` and its Japanese translation `docs/PROTOCOL-ja.md`,
+update `protocol/vectors.json`, then bring both
 implementations in line. The specification is the authority and the test data follows from it.
 
 ## Development

@@ -1,54 +1,55 @@
-# pid.codes への申請用の下書き
+# Draft of the pid.codes application
 
-USB の VID `0x1209`（pid.codes）配下に、このプロジェクト専用の PID を登録するための下書き。
-申請の条件と手順は [pid.codes の How to](https://pid.codes/howto/) を参照。
+**English** | [日本語](README-ja.md)
 
-> **状況**: 2026-09-28 に受理された（[PR #1280](https://github.com/pidcodes/pidcodes.github.com/pull/1280)）。
-> 登録内容は <https://pid.codes/1209/6870/>。2026-10-04 に既定値を `1209:6870` へ切り替えた。
+A draft for registering a PID of this project's own under the USB VID `0x1209` (pid.codes).
+For the conditions and the procedure, see the [pid.codes how-to](https://pid.codes/howto/).
 
-## 申請するもの
+> **Status**: accepted on 2026-09-28 ([PR #1280](https://github.com/pidcodes/pidcodes.github.com/pull/1280)).
+> The registration is at <https://pid.codes/1209/6870/>. The defaults were switched to `1209:6870` on 2026-10-04.
 
-| ファイル | 置き場所（フォーク先のリポジトリ内） |
+## What is submitted
+
+| File | Location in the forked repository |
 |---|---|
-| `org/yukke.org/index.md` | 組織ページ |
-| `1209/6870/index.md` | 機器ページ（PID = `0x6870`、ASCII で "hp"） |
+| `org/yukke.org/index.md` | Organisation page |
+| `1209/6870/index.md` | Device page (PID = `0x6870`, "hp" in ASCII) |
 
-`0x6870` は 2026-09-17 時点で、登録済み 921 件とオープンな PR 85 件のどちらとも衝突していない。
-申請前にもう一度、[1209 の一覧](https://github.com/pidcodes/pidcodes.github.com/tree/master/1209)と
-オープンな PR を確認する。
+As of 2026-09-17, `0x6870` collided with neither the 921 registered PIDs nor the 85 open PRs.
+Before applying, check the [list under 1209](https://github.com/pidcodes/pidcodes.github.com/tree/master/1209)
+and the open PRs again.
 
-## 前提条件（達成済み）
+## Prerequisites (met)
 
-pid.codes は「公開されたソース」と「OSS ライセンス」を条件にしている。
-このリポジトリは <https://github.com/yukkeorg/hidpin> で公開済みで、MIT ライセンスの
-`LICENSE` がある。下書きの `site` と `source` はこの URL を指している。
+pid.codes requires "publicly available source" and "an open source licence".
+This repository is public at <https://github.com/yukkeorg/hidpin> and has an MIT `LICENSE`.
+The `site` and `source` in the draft point to this URL.
 
-このプロジェクトをフォークして別の PID を取る場合は、`owner`・`site`・`source` を
-自分のものに書き換えること。
+If you fork this project to get a PID of your own, change `owner`, `site` and `source` to yours.
 
-## 申請の手順
+## How to apply
 
-1. [pidcodes/pidcodes.github.com](https://github.com/pidcodes/pidcodes.github.com) をフォークする
-2. このディレクトリの `org/` と `1209/` の中身を、フォークした作業ツリーの同じ場所にコピーする
-3. コミットしてプルリクエストを送る（1 機器につき 1 PID。複数欲しい場合は理由の説明が要る）
+1. Fork [pidcodes/pidcodes.github.com](https://github.com/pidcodes/pidcodes.github.com)
+2. Copy the contents of `org/` and `1209/` in this directory to the same places in the fork's working tree
+3. Commit and send a pull request (one PID per device; asking for more needs an explanation)
 
-## 受理されたあとにやったこと（2026-10-04）
+## What was done after acceptance (2026-10-04)
 
-`1209:0001`（テスト用 PID）から、割り当てられた `1209:6870` に既定値を切り替えた。書き換えたのは次の箇所。
+The defaults were switched from `1209:0001` (the test PID) to the allocated `1209:6870`. These places were changed:
 
-- `firmware/CMakeLists.txt` の `HIDPIN_USB_PID` の既定値と、`firmware/app/usb_descriptors.c` の `HIDPIN_USB_PID`
-- `host/src/hidpin/device.py` の `DEFAULT_PRODUCT_ID` と、そのテスト
-- `host-go/hidpin/device.go` の `DefaultProductID` と、そのテスト
-- `udev/60-hidpin.rules` の `idProduct`（2 行）
-- `docs/PROTOCOL.md` §1、`docs/TESTING.md`、`README.md`、`README.ja.md` の表記
-- `rust-firmware` ブランチの `firmware-rs/app/build.rs` の既定値と `firmware-rs/README.md`
+- the default of `HIDPIN_USB_PID` in `firmware/CMakeLists.txt`, and `HIDPIN_USB_PID` in `firmware/app/usb_descriptors.c`
+- `DEFAULT_PRODUCT_ID` in `host/src/hidpin/device.py`, and its tests
+- `DefaultProductID` in `host-go/hidpin/device.go`, and its tests
+- `idProduct` in `udev/60-hidpin.rules` (two lines)
+- the text of `docs/PROTOCOL.md` §1, `docs/TESTING.md`, `README.md` and `README.ja.md`
+- the default in `firmware-rs/app/build.rs` and `firmware-rs/README.md` on the `rust-firmware` branch
 
-切り替え後は、ファームウェアを書き込み直し、udev ルールを入れ直してボードを挿し直す。
+After switching, flash the firmware again, reinstall the udev rule and replug the board.
 
-CMake のビルドディレクトリは、構成したときの `HIDPIN_USB_PID` をキャッシュに覚えている。
-切り替え前に構成したディレクトリは `0x0001` のままビルドされるので、構成し直す。
+A CMake build directory remembers in its cache the `HIDPIN_USB_PID` it was configured with.
+A directory configured before the switch still builds `0x0001`, so configure it again.
 
 ```
 cmake -S firmware -B build/pico -DHIDPIN_USB_PID=0x6870
-cmake --build build/pico        # 書き込み直す
+cmake --build build/pico        # then flash again
 ```

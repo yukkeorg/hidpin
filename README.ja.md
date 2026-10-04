@@ -19,7 +19,7 @@ RP2040 マイコンボードの GPIO を監視し、その状態を USB-HID で�
 > **現在の状態**: PC 上のテスト（ファームウェアのコア 33 件、ホスト 60 件）に加えて、
 > **Adafruit QT Py RP2040 の実機で動作を確認済み**（2026-09-17）。
 > 認識、監視とエッジイベント、チャタリング除去、ピン設定、出力、バスリセット時の復帰まで確認した。
-> Raspberry Pi Pico は未確認。手順は [docs/TESTING.md](docs/TESTING.md) にある。
+> Raspberry Pi Pico は未確認。手順は [docs/TESTING-ja.md](docs/TESTING-ja.md) にある。
 
 ## できること
 
@@ -120,6 +120,7 @@ docs/CONCEPT.md       最初の構想
 docs/PROTOCOL.md      USB-HID プロトコル版 1 の仕様（正）
 docs/TESTING.md       実機での確認手順
 docs/adr/             設計判断の記録
+docs/pid-codes/       USB の PID を pid.codes に登録したときの記録
 protocol/vectors.json C と Python の両方のテストが参照するテストデータ
 firmware/core/        SDK に依存しないコア（レポート、チャタリング除去、イベント、エンジン）
 firmware/app/         Pico SDK + TinyUSB のファームウェア
@@ -129,7 +130,10 @@ host-go/              Go のライブラリと CLI（Linux 専用、cgo 不要�
 udev/                 Linux の udev ルール
 ```
 
-プロトコルを変えるときは、`docs/PROTOCOL.md` を直し、`protocol/vectors.json` を更新し、
+`docs/` の文書は英語が基本で、日本語訳は同じ場所の `*-ja.md`
+（例: [docs/PROTOCOL-ja.md](docs/PROTOCOL-ja.md)）にある。用語集の `CONTEXT.md` は日本語。
+
+プロトコルを変えるときは、`docs/PROTOCOL.md`（英語）とその日本語訳 `docs/PROTOCOL-ja.md` を直し、`protocol/vectors.json` を更新し、
 C と Python の両方の実装を合わせる。仕様書が正で、テストデータはそこから導く。
 
 ## 開発

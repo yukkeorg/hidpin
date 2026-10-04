@@ -1,44 +1,46 @@
 # RPI2040/35-IO
 
-- RPi2040/2035 マイコンボードのGPIOピンとUSBポートを利用する。
-- GPIOポートを監視し、状態をUSBポートを介してコンピュータに接続する。
-- コンピュータに対しては、USB-HID（キーボードなどと同様）デバイスとしてできる。
-- データの授受は、HIDのルールに則って行う。
+**English** | [日本語](CONCEPT-ja.md)
 
-## 開発環境
+- Use the GPIO pins and the USB port of an RPi2040/2035 microcontroller board.
+- Monitor the GPIO ports and pass their state to a computer through the USB port.
+- To the computer, the board works as a USB-HID device (like a keyboard).
+- Data is exchanged following the rules of HID.
 
-- 開発はPico SDK の C/C++を用いる
-- ライブラリに TinyUSB を用いる
+## Development environment
+
+- Develop in C/C++ with the Pico SDK
+- Use TinyUSB as the library
 
 ## HID
 
-- HID 1.11に則る
-- Input: デバイス -> ホスト
-	- シーケンス番号
-	- GPIOの状態(32ビット)
-	- タイムスタンプ（μs)
-	- エッジイベント列
-- Output: ホスト -> デバイス
-	- 出力ピンのマスクと値
+- Follow HID 1.11
+- Input: device -> host
+	- Sequence number
+	- GPIO state (32 bits)
+	- Timestamp (µs)
+	- Edge events
+- Output: host -> device
+	- Mask and values of the output pins
 - Feature:
-	- ピンの入出力方法
-	- プルアップ／プルダウン
-	- 設定 
+	- Whether each pin is an input or an output
+	- Pull-up / pull-down
+	- Settings
 - UsagePage
-	- ベンダー定義
+	- Vendor-defined
 
-## 性能
+## Performance
 
-1. 時間分解能
-   - Full Speedでは1msフレームごとに1トランザクション、1回あたり最大64バイトです。
-   - 1ms未満のパルスや、1msに2回以上起きるエッジは、単純に状態を送るだけでは取りこぼします。
-   - 対策：デバイス側で割り込みを使ってタイムスタンプ付きのイベントを溜め、64バイトのレポートにまとめて送ります。
-2. ホスト側の受信バッファ
-   - Windowsの入力バッファは標準で32個です（HidD_SetNumInputBuffers で最大512個まで増やせます）。
-   - アプリの読み取りが遅れると溢れる可能性があるので、レポートにシーケンス番号を入れて欠落を検出できるようにします。
-   - 起動時の状態は Get_Report(Input) で取得します。
+1. Time resolution
+   - At Full Speed, there is one transaction per 1 ms frame, carrying at most 64 bytes.
+   - Pulses shorter than 1 ms, and two or more edges within 1 ms, are lost if only the state is sent.
+   - Countermeasure: the device collects timestamped events using interrupts and sends them together in 64-byte reports.
+2. Receive buffers on the host
+   - Windows has 32 input buffers by default (HidD_SetNumInputBuffers raises this to at most 512).
+   - They can overflow when the application falls behind in reading, so the reports carry a sequence number to detect losses.
+   - The state at start-up is read with Get_Report(Input).
 
-## 確認可能なRPi204xボード
+## RPi204x boards available for testing
 
 - Raspberry Pi Pico
 - Adafruit Qi Py RP2040

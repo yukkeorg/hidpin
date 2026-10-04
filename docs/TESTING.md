@@ -1,42 +1,44 @@
-# 実機での確認手順
+# Checking on real hardware
 
-PC 上のユニットテスト（`firmware/test`、`host/tests`）では確かめられない部分を、実機で確認する手順。
-用語は [CONTEXT.md](../CONTEXT.md)、レポートの内容は [PROTOCOL.md](./PROTOCOL.md) を参照。
+**English** | [日本語](TESTING-ja.md)
 
-## 用意するもの
+How to check on real hardware what the unit tests on a PC (`firmware/test`, `host/tests`) cannot.
+Terms follow [CONTEXT.md](../CONTEXT.md) (written in Japanese), and the report contents are in [PROTOCOL.md](./PROTOCOL.md).
 
-- Raspberry Pi Pico または Adafruit QT Py RP2040
-- USB ケーブル（データ線のあるもの。充電専用ケーブルでは認識されない）
-- タクトスイッチ 1 個とジャンパ線（GPIO5 と GND の間につなぐ）
-- LED 1 個と抵抗 330Ω 程度（出力の確認用。GPIO7 → 抵抗 → LED → GND）
-- ホスト側の準備
+## What you need
+
+- A Raspberry Pi Pico or an Adafruit QT Py RP2040
+- A USB cable that carries data (a charge-only cable is not recognised)
+- One tactile switch and jumper wires (connected between GPIO5 and GND)
+- One LED and a resistor of about 330 Ω (to check outputs: GPIO7 → resistor → LED → GND)
+- On the host
 
   ```
   sudo cp udev/60-hidpin.rules /etc/udev/rules.d/
   sudo udevadm control --reload-rules && sudo udevadm trigger
-  uv tool install ./host        # インストールせずに試すなら cd host && uv run hidpin ...
+  uv tool install ./host        # to try without installing: cd host && uv run hidpin ...
   ```
 
-  ルールを入れた後にボードを挿し直す。挿したままだと権限が変わらず、
-  `OSError: open failed` のままになる。Linux では hidraw を直接使うので、
-  hidapi のインストールは不要。
+  Replug the board after installing the rule. While it stays plugged in, its permissions do not change and
+  `OSError: open failed` persists. On Linux hidraw is used directly, so hidapi does not need to be
+  installed.
 
-配線は 3.3V 系。**RP2040 は 5V トレラントではない**ので、外部機器の信号を直接つながない。
+The wiring is 3.3 V. **The RP2040 is not 5 V tolerant**, so do not connect signals from other equipment directly.
 
-## 1. 書き込み
+## 1. Flashing
 
-1. ファームウェアをビルドする。
+1. Build the firmware.
 
    ```
-   cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico   # QT Py は adafruit_qtpy_rp2040
+   cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico   # adafruit_qtpy_rp2040 for the QT Py
    cmake --build build/pico
    ```
-2. ボードの BOOTSEL ボタン（QT Py は BOOT ボタン）を押しながら USB をつなぐ。
-3. `RPI-RP2` という USB メモリが現れるので、`build/pico/hidpin.uf2` をコピーする。
+2. Hold the BOOTSEL button (the BOOT button on the QT Py) while plugging in USB.
+3. A USB drive named `RPI-RP2` appears; copy `build/pico/hidpin.uf2` onto it.
 
-- [ ] コピー後にドライブが自動的に消え、ボードが再起動する
+- [ ] After the copy, the drive disappears by itself and the board restarts
 
-## 2. USB で認識されること
+## 2. Recognised on USB
 
 ```
 lsusb | grep 1209:6870
@@ -44,65 +46,65 @@ hidpin list
 hidpin info
 ```
 
-- [ ] `lsusb` に `1209:6870` が出る
-- [ ] `hidpin list` にシリアル番号（16 桁の 16 進数）が出る
-- [ ] `hidpin info` のボード名と利用可能GPIOが、つないだボードと一致する（Pico は 26 本、QT Py は 13 本）
-- [ ] 電源が入った時点で状態 LED が点灯する（Pico は本体の LED、QT Py は NeoPixel が緑）
-- [ ] `dmesg` に `hidraw` として現れ、キーボードやマウスとしては認識されない
+- [ ] `lsusb` shows `1209:6870`
+- [ ] `hidpin list` shows a serial number (16 hexadecimal digits)
+- [ ] The board name and the available GPIOs in `hidpin info` match the board (26 for the Pico, 13 for the QT Py)
+- [ ] The status LED lights as soon as the power is on (the on-board LED on the Pico, the NeoPixel in green on the QT Py)
+- [ ] `dmesg` shows it as `hidraw`, not as a keyboard or a mouse
 
-USB ケーブルを抜くと LED が消える（電源も切れる）。
+Unplugging the USB cable turns the LED off (the power goes too).
 
-## 3. 状態通知とスイッチ入力
+## 3. Status reports and switch input
 
-GPIO5 と GND の間にスイッチをつなぐ。既定ピン設定はプルアップなので、押すと LOW になる。
+Connect the switch between GPIO5 and GND. The default pin configuration uses pull-ups, so pressing it gives LOW.
 
 ```
 hidpin watch
 ```
 
-- [ ] 最初の行に全監視ピンの ON/OFF が出て、GPIO5 は `OFF`（押していないので HIGH）
-- [ ] スイッチを押すと `GPIO5  ON  (LOW)` が 1 行出る
-- [ ] 離すと `GPIO5  OFF (HIGH)` が 1 行出る
-- [ ] 1 回の押し離しで、余分な行が出ない（チャタリングが除去されている）
-- [ ] 押したときと離したときに、状態 LED が一瞬変わる（QT Py は青、Pico は消灯）
-- [ ] 表示される時刻の差が、実際に押していた時間とおおよそ一致する
+- [ ] The first line shows ON/OFF for every monitored pin, and GPIO5 is `OFF` (HIGH, as it is not pressed)
+- [ ] Pressing the switch prints one line, `GPIO5  ON  (LOW)`
+- [ ] Releasing it prints one line, `GPIO5  OFF (HIGH)`
+- [ ] One press and release prints no extra lines (chattering is removed)
+- [ ] The status LED changes briefly on press and on release (blue on the QT Py, off on the Pico)
+- [ ] The difference between the times shown roughly matches how long the switch was held
 
-`hidpin --json watch` では 1 行 1 レポートの JSON が出る。`events` の `start_us` が変化の開始時刻。
+`hidpin --json watch` prints one JSON report per line. `start_us` in `events` is the time the change started.
 
-- [ ] 押しっぱなしにしても、1 秒ごとの定期通知（`reason` に `PERIODIC`）は出続ける
+- [ ] Even while the switch is held, the periodic report every second (`PERIODIC` in `reason`) keeps coming
 
-## 4. チャタリング除去時間の効果
+## 4. Effect of the debounce time
 
 ```
-hidpin config set 5=pullup:0     # 除去なし
+hidpin config set 5=pullup:0     # no debouncing
 hidpin watch
 ```
 
-- [ ] 1 回押しただけで複数の行が出ることがある（接点のバタつきがそのまま見える）
+- [ ] A single press can print several lines (the contact bounce shows as it is)
 
 ```
-hidpin config set 5=pullup:20    # 既定値に戻す
+hidpin config set 5=pullup:20    # back to the default
 ```
 
-- [ ] 1 回の押し離しが 1 行ずつに戻る
+- [ ] Each press and each release is back to one line
 
-## 5. ピン設定の読み書き
+## 5. Reading and writing the pin configuration
 
 ```
 hidpin config get
 hidpin config set 6=off
 hidpin config get
-hidpin config set 23=pullup:20   # Pico では利用可能GPIOではない
+hidpin config set 23=pullup:20   # not an available GPIO on the Pico
 ```
 
-- [ ] `config set 6=off` の後、`config get` の一覧から GPIO6 が消える
-- [ ] `watch` に `the pin configuration changed` が出る（`reason` に `CONFIG_CHANGED`）
-- [ ] 利用可能GPIOでないピンを指定すると、エラーになり設定は変わらない
-- [ ] USB を抜き差しすると、ピン設定が既定（全ピン `pullup:20`）に戻る
+- [ ] After `config set 6=off`, GPIO6 disappears from the `config get` list
+- [ ] `watch` shows `the pin configuration changed` (`CONFIG_CHANGED` in `reason`)
+- [ ] Naming a pin that is not an available GPIO fails, and the configuration does not change
+- [ ] Unplugging and replugging USB returns the pin configuration to the default (every pin `pullup:20`)
 
-## 6. 出力
+## 6. Outputs
 
-GPIO7 に LED をつなぐ。
+Connect the LED to GPIO7.
 
 ```
 hidpin config set 7=out:low
@@ -110,63 +112,63 @@ hidpin output 7=high
 hidpin output 7=low
 ```
 
-- [ ] `out:low` にした時点では LED は消えている
-- [ ] `output 7=high` で LED が点く
-- [ ] 出力指示のたびに、状態 LED が一瞬変わる（QT Py は青、Pico は消灯）
-- [ ] `output 7=low` で消える
-- [ ] `hidpin watch` に出力の変化が出る（`reason` に `OUTPUT_APPLIED`）
-- [ ] 出力ピンではない GPIO を指定すると警告が出て、何も変わらない
+- [ ] The LED is off once the pin is set to `out:low`
+- [ ] `output 7=high` turns the LED on
+- [ ] The status LED changes briefly on every output command (blue on the QT Py, off on the Pico)
+- [ ] `output 7=low` turns it off
+- [ ] `hidpin watch` shows the change of the output (`OUTPUT_APPLIED` in `reason`)
+- [ ] Naming a GPIO that is not an output pin prints a warning and changes nothing
 
-USB サスペンドの確認（PC をスリープさせるか、`/sys/bus/usb/devices/.../power/control` を使う）。
+Checking USB suspend (put the PC to sleep, or use `/sys/bus/usb/devices/.../power/control`):
 
-- [ ] LED を点けた状態でサスペンドすると、**初期出力レベル（LOW）に戻って消える**
-- [ ] 復帰後の `watch` に `outputs returned to their initial level …` が出る（`reason` に `OUTPUT_RESET`）
+- [ ] Suspending with the LED on **returns it to the initial output level (LOW), so it goes off**
+- [ ] After resuming, `watch` shows `outputs returned to their initial level …` (`OUTPUT_RESET` in `reason`)
 
-`OUTPUT_RESET` は再接続直後の最初の状態通知に立つ。`watch` を止めてから接続し直した場合は
-受け取れない（出力が初期出力レベルに戻っていることは `levels` で確認できる）。
-USB バスリセットでも同じ動作になる。root なしで試すには、hidraw に対応する USB ノードに
-`USBDEVFS_RESET`（`_IO('U', 20)` = `0x5514`）を ioctl で送る。
+`OUTPUT_RESET` is set on the first status report right after reconnection. If `watch` was stopped before
+reconnecting, it is not received (that the outputs are back at their initial level can be checked in `levels`).
+A USB bus reset behaves the same. To try one without root, send `USBDEVFS_RESET`
+(`_IO('U', 20)` = `0x5514`) with ioctl to the USB node behind the hidraw device.
 
-## 7. 取りこぼしと欠落の検出
+## 7. Detecting missed reports and dropped events
 
 ```
 hidpin --json watch > /tmp/hidpin.jsonl
 ```
 
-スイッチを何度か操作してから停止し、記録を確認する。
+Operate the switch several times, then stop and check the record.
 
-- [ ] `seq` が 1 ずつ増えている（`missed_reports` が 0 のまま）
-- [ ] `flags` に `OVERFLOW` が出ない
+- [ ] `seq` increases by 1 each time (`missed_reports` stays 0)
+- [ ] `OVERFLOW` does not appear in `flags`
 
-スイッチの端子をこすり合わせるなどして、短時間に多数の変化を起こす。
+Cause many changes in a short time, for example by rubbing the switch terminals together.
 
-- [ ] `flags` に `OVERFLOW` が出た場合でも、その後の `levels` は実際のピンの状態と一致する
+- [ ] Even if `OVERFLOW` appears in `flags`, the `levels` that follow match the actual state of the pins
 
-## 8. 複数台の同時接続（2 台ある場合）
+## 8. Two boards at once (if you have two)
 
-- [ ] `hidpin list` に 2 つのシリアル番号が出る
-- [ ] `--serial` なしで `hidpin info` を実行すると、どちらを使うか指定するよう促される
-- [ ] `--serial` で指定すると、そのデバイスだけを操作できる
+- [ ] `hidpin list` shows two serial numbers
+- [ ] Running `hidpin info` without `--serial` asks which one to use
+- [ ] With `--serial`, only that device is operated
 
-## 9. デバッグ版
+## 9. Debug build
 
 ```
 cmake -S firmware -B build/pico-debug -G Ninja -DPICO_BOARD=pico -DHIDPIN_DEBUG=ON
 cmake --build build/pico-debug
 ```
 
-書き込み後、
+After flashing:
 
-- [ ] `hidpin list` は変わらず動く（HID の見え方は同じ）
-- [ ] `/dev/ttyACM0` が現れ、`hidpin config set` などの操作時にログが出る
+- [ ] `hidpin list` still works (the HID side looks the same)
+- [ ] `/dev/ttyACM0` appears, and logs are printed on operations such as `hidpin config set`
 
   ```
-  screen /dev/ttyACM0 115200     # または: cat /dev/ttyACM0
+  screen /dev/ttyACM0 115200     # or: cat /dev/ttyACM0
   ```
 
-## 10. 他の OS（任意）
+## 10. Other operating systems (optional)
 
-Windows と macOS は「対応」とはしていないが、動かす場合の確認。
+Windows and macOS are not "supported", but this is what to check when running hidpin on them.
 
-- [ ] ドライバの追加インストールなしで認識される
-- [ ] `hidpin list` と `hidpin watch` が動く
+- [ ] The board is recognised without installing an extra driver
+- [ ] `hidpin list` and `hidpin watch` work

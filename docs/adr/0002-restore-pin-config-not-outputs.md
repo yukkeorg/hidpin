@@ -2,22 +2,24 @@
 status: accepted
 ---
 
-# 再接続後、ピン設定は書き戻すが出力レベルは復元しない
+# After reconnecting, write the pin configuration back but do not restore output levels
 
-Go ライブラリの高レベル層（常駐デーモン向け）は、**目標ピン設定**を全**利用可能GPIO**について持つ（指定のない GPIO は「使わない」）。
-**デバイス**上の**ピン設定**がこれと食い違えば、再接続時でも接続中の外部変更でも書き戻す。
-一方、**出力レベル**は目標に含めない。**初期出力レベル**に戻ったことを通知するだけで、駆動し直すかはアプリが決める。
-**初期出力レベル**は、USB の切断・サスペンド・バスリセット時に装置を安全側へ置くためのものである（PROTOCOL.md 7.2）。
-ライブラリが自動で駆動し直すと、ホストのスリープ復帰直後のように人が見ていない間に装置が動き出す。
-ピン設定の書き戻しでは、**出力ピン**は**初期出力レベル**から始まるだけなので、安全側は崩れない。
+**English** | [日本語](0002-restore-pin-config-not-outputs-ja.md)
+
+The high-level layer of the Go library (meant for long-running daemons) holds a **target pin configuration** that covers every **available GPIO** (a GPIO not named is "unused").
+When the **pin configuration** on the **device** differs from it, the layer writes it back, both on reconnection and when it is changed from outside while connected.
+**Output levels**, on the other hand, are not part of the target. The layer only reports that they returned to their **initial output levels**; whether to drive them again is up to the application.
+The **initial output level** exists to put the equipment into a safe state when USB is disconnected, suspended or reset (PROTOCOL.md 7.2).
+If the library drove the outputs again by itself, equipment would start moving while nobody is watching, such as right after the host resumes from sleep.
+Writing the pin configuration back only makes each **output pin** start at its **initial output level**, so the safe state holds.
 
 ## Considered Options
 
-- 出力レベルも自動で復元する：アプリは出力を「あるべき状態」として扱えるが、上記の理由で退けた。
-- 外部からのピン設定の変更には通知だけで従う：次の再接続まで目標と実際が食い違い、再接続時に書き直すことと一貫しない。
-- 指定したピンだけを持つ：別のプログラムとピンを分け合えるが、配線していないピンに**既定ピン設定**のプルアップが残る。
+- Restore the output levels automatically as well: applications could treat outputs as "the state they should be in", but this was rejected for the reason above.
+- Follow changes to the pin configuration made from outside, only reporting them: the target and the actual configuration would differ until the next reconnection, which is inconsistent with writing it back on reconnection.
+- Hold only the pins named: the pins could be shared with another program, but unwired pins would keep the pull-ups of the **default pin configuration**.
 
 ## Consequences
 
-- 異なる**目標ピン設定**を持つ 2 つのプログラムを同じ**デバイス**に向けると、書き戻しが繰り返される。高レベル層はこれを通知で知らせる。
-- ピン設定に触れたくない用途（CLI の `watch`、記録専用のデーモン）は、**目標ピン設定**を持たずに使う。この場合は**デバイス**上の**ピン設定**に従い、書き戻さない。
+- Pointing two programs with different **target pin configurations** at the same **device** makes them write it back over and over. The high-level layer reports this.
+- Uses that should not touch the pin configuration (the CLI `watch`, a daemon that only records) run without a **target pin configuration**. They then follow the **pin configuration** on the **device** and write nothing back.

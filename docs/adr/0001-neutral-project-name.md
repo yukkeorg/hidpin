@@ -2,12 +2,14 @@
 status: accepted
 ---
 
-# プロジェクト名を商標を含まない `hidpin` とする
+# Name the project `hidpin`, free of trademarks
 
-構想段階の仮称「RPI204x-IO」は、Raspberry Pi の商標を公式品と誤認させうる形で名前の先頭に含むうえ、「204x」は RP2040 の型番規則上実在しない系列である。
-公開名（リポジトリ、PyPI パッケージ、CLI コマンド、pid.codes 登録）は一度広まると変更が難しいため、商標もチップ名も含まない `hidpin` を採用し、対応ボードは説明文で「for RP2040 boards（Raspberry Pi Pico / Adafruit QT Py RP2040）」のように互換性の表示として示す。
+**English** | [日本語](0001-neutral-project-name-ja.md)
+
+The working name from the concept stage, "RPI204x-IO", puts Raspberry Pi's trademark at the start of the name in a way that could be mistaken for an official product, and "204x" is a series that does not exist under the RP2040 part-numbering scheme.
+Public names (the repository, the PyPI package, the CLI command and the pid.codes registration) are hard to change once they spread, so we adopt `hidpin`, which contains neither a trademark nor a chip name, and show the supported boards in descriptions as a statement of compatibility, as in "for RP2040 boards (Raspberry Pi Pico / Adafruit QT Py RP2040)".
 
 ## Considered Options
 
-- `rpi204x-io`（構想名そのまま）: 商標の誤認リスクと、実在しない型番系列の二重の問題がある。
-- `rp2040-io`（チップ名を含める）: チップ名が商標に当たるかを一次情報で確認できなかったうえ、RP2350（Pico 2）へ対応を広げたときに名前と実態がずれる。
+- `rpi204x-io` (the concept name as it is): it has two problems, the risk of trademark confusion and a part-number series that does not exist.
+- `rp2040-io` (including the chip name): we could not confirm from primary sources whether the chip name is a trademark, and the name would no longer match what the project is once support extends to the RP2350 (Pico 2).
