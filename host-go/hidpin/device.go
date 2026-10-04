@@ -10,11 +10,12 @@ import (
 	"time"
 )
 
-// USB identifiers. The defaults are the pid.codes test PID; override them with HIDPIN_VID and
-// HIDPIN_PID when the firmware was built with other ids.
+// USB identifiers. The defaults are the ids pid.codes allocated to hidpin
+// (https://pid.codes/1209/6870/); override them with HIDPIN_VID and HIDPIN_PID when the firmware
+// was built with other ids.
 const (
 	DefaultVendorID  uint16 = 0x1209
-	DefaultProductID uint16 = 0x0001
+	DefaultProductID uint16 = 0x6870
 )
 
 // USBIDs returns the vendor and product id to look for.

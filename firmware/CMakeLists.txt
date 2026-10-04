@@ -21,10 +21,11 @@ project(hidpin_firmware VERSION 0.1.0 LANGUAGES C CXX ASM)
 
 option(HIDPIN_DEBUG "Add a USB CDC interface that carries debug logs" OFF)
 
-# USB identifiers. The defaults are the pid.codes test PID, which is for in-house
-# testing only; pass your allocated ids when you distribute a board.
+# USB identifiers. 1209:6870 is allocated to hidpin by pid.codes (https://pid.codes/1209/6870/).
+# A modified device that is redistributed needs ids of its own; 1209:0001 is the pid.codes test PID,
+# for in-house testing only. An existing build directory keeps the PID it was configured with.
 set(HIDPIN_USB_VID "0x1209" CACHE STRING "USB Vendor ID")
-set(HIDPIN_USB_PID "0x0001" CACHE STRING "USB Product ID")
+set(HIDPIN_USB_PID "0x6870" CACHE STRING "USB Product ID")
 if(HIDPIN_USB_VID STREQUAL "0x1209" AND HIDPIN_USB_PID STREQUAL "0x0001")
     message(STATUS "hidpin: USB ${HIDPIN_USB_VID}:${HIDPIN_USB_PID} (pid.codes test PID; in-house testing only)")
 else()

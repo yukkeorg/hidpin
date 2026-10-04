@@ -12,7 +12,7 @@ PC 上のユニットテスト（`firmware/test`、`host/tests`）では確か�
 - ホスト側の準備
 
   ```
-  sudo cp udev/70-hidpin.rules /etc/udev/rules.d/
+  sudo cp udev/60-hidpin.rules /etc/udev/rules.d/
   sudo udevadm control --reload-rules && sudo udevadm trigger
   uv tool install ./host        # インストールせずに試すなら cd host && uv run hidpin ...
   ```
@@ -39,12 +39,12 @@ PC 上のユニットテスト（`firmware/test`、`host/tests`）では確か�
 ## 2. USB で認識されること
 
 ```
-lsusb | grep 1209:0001
+lsusb | grep 1209:6870
 hidpin list
 hidpin info
 ```
 
-- [ ] `lsusb` に `1209:0001` が出る
+- [ ] `lsusb` に `1209:6870` が出る
 - [ ] `hidpin list` にシリアル番号（16 桁の 16 進数）が出る
 - [ ] `hidpin info` のボード名と利用可能GPIOが、つないだボードと一致する（Pico は 26 本、QT Py は 13 本）
 - [ ] 電源が入った時点で状態 LED が点灯する（Pico は本体の LED、QT Py は NeoPixel が緑）

@@ -59,7 +59,7 @@ debug logs.
 ### 2. Set up the host (Linux)
 
 ```
-sudo cp udev/70-hidpin.rules /etc/udev/rules.d/
+sudo cp udev/60-hidpin.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
@@ -158,22 +158,29 @@ cd host && uv run --group dev pytest
 
 ## About the USB identifiers
 
-The default is the pid.codes test PID **1209:0001**, which is **for in-house testing only** and
-must not be used on a device that is redistributed, sold or manufactured. Get your own PID from
-[pid.codes](https://pid.codes/howto/) — free if the source is public under an open source
-licence.
+hidpin has its own USB identifiers, **1209:6870**, allocated by
+[pid.codes](https://pid.codes/1209/6870/). The firmware, the host tools and the udev rule use them
+by default.
 
-Building and connecting with an allocated number:
+If you redistribute a device whose firmware you have changed, give it a PID of its own; pid.codes
+allocates them free when the source is public under an open source licence
+([how to](https://pid.codes/howto/)). For in-house experiments the pid.codes test PID 1209:0001 may
+be used, but never on a device that is redistributed, sold or manufactured.
+
+Building and connecting with other ids:
 
 ```
-cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico -DHIDPIN_USB_PID=0x1234
+cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico -DHIDPIN_USB_PID=0x0001
 cmake --build build/pico
 
-HIDPIN_PID=0x1234 hidpin list        # tell the host side the same number
+HIDPIN_PID=0x0001 hidpin list        # tell the host side the same number
 ```
 
 `HIDPIN_USB_VID` / `HIDPIN_USB_PID` are the firmware side, `HIDPIN_VID` / `HIDPIN_PID` the host
-side. The `idProduct` in the udev rule (`udev/70-hidpin.rules`) has to be edited by hand.
+side. The `idProduct` in the udev rule (`udev/60-hidpin.rules`) has to be edited by hand.
+
+A build directory keeps the PID it was configured with. One configured before the switch to
+1209:6870 still builds 1209:0001: configure it again with `-DHIDPIN_USB_PID=0x6870`, or delete it.
 
 ## Licence
 

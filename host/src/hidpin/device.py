@@ -20,7 +20,7 @@ from hidpin.protocol import (
 )
 
 DEFAULT_VENDOR_ID = 0x1209
-DEFAULT_PRODUCT_ID = 0x0001
+DEFAULT_PRODUCT_ID = 0x6870  # allocated by pid.codes: https://pid.codes/1209/6870/
 USAGE_PAGE = 0xFF00
 USAGE = 0x01
 
@@ -191,7 +191,7 @@ class Device:
         except OSError as exc:
             raise HidpinError(
                 f"cannot open the device ({exc}). If this is a permissions problem, install the "
-                "udev rule and replug the board: sudo cp udev/70-hidpin.rules /etc/udev/rules.d/ "
+                "udev rule and replug the board: sudo cp udev/60-hidpin.rules /etc/udev/rules.d/ "
                 "&& sudo udevadm control --reload-rules && sudo udevadm trigger"
             ) from exc
         device = cls(handle, serial=serial or "")

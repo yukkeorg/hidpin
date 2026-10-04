@@ -39,12 +39,12 @@ func makeSysfs(t *testing.T, vendor, product, serial string) string {
 }
 
 func TestEnumerateReadsSysfs(t *testing.T) {
-	SysfsRoot = makeSysfs(t, "00001209", "00000001", "DF60BCA003562839")
-	infos, err := Enumerate(0x1209, 0x0001)
+	SysfsRoot = makeSysfs(t, "00001209", "00006870", "DF60BCA003562839")
+	infos, err := Enumerate(0x1209, 0x6870)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Info{Path: "/dev/hidraw0", VendorID: 0x1209, ProductID: 0x0001, Serial: "DF60BCA003562839",
+	want := Info{Path: "/dev/hidraw0", VendorID: 0x1209, ProductID: 0x6870, Serial: "DF60BCA003562839",
 		Manufacturer: "yukke.org", Product: "hidpin"}
 	if len(infos) != 1 || infos[0] != want {
 		t.Errorf("got %+v", infos)
@@ -52,8 +52,8 @@ func TestEnumerateReadsSysfs(t *testing.T) {
 }
 
 func TestEnumerateFilters(t *testing.T) {
-	SysfsRoot = makeSysfs(t, "00001209", "00000001", "X")
-	for _, ids := range [][2]uint16{{0x2E8A, 0x0001}, {0x1209, 0x000A}} {
+	SysfsRoot = makeSysfs(t, "00001209", "00006870", "X")
+	for _, ids := range [][2]uint16{{0x2E8A, 0x6870}, {0x1209, 0x000A}} {
 		if infos, _ := Enumerate(ids[0], ids[1]); len(infos) != 0 {
 			t.Errorf("%#x:%#x matched %v", ids[0], ids[1], infos)
 		}

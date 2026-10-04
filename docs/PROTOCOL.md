@@ -11,7 +11,7 @@
 
 | 項目 | 値 |
 |---|---|
-| VID:PID | `1209:0001`（pid.codes テスト用 PID。公開前に正式 PID へ置き換える） |
+| VID:PID | `1209:6870`（pid.codes が hidpin に割り当てた番号。<https://pid.codes/1209/6870/>） |
 | Manufacturer 文字列 | `yukke.org` |
 | Product 文字列 | `hidpin` |
 | Serial 文字列 | **シリアル番号**。ボード固有 ID を大文字 16 進で表した 16 文字（`[0-9A-F]{16}`、先頭の 0 を省略しない） |

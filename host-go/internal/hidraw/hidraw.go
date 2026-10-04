@@ -79,7 +79,7 @@ func Enumerate(vendorID, productID uint16) ([]Info, error) {
 			continue
 		}
 
-		// .../3-2/3-2:1.0/0003:1209:0001.000F -> the USB device is two levels up.
+		// .../3-2/3-2:1.0/0003:1209:6870.000F -> the USB device is two levels up.
 		usbDevice := ""
 		if resolved, err := filepath.EvalSymlinks(device); err == nil {
 			usbDevice = filepath.Dir(filepath.Dir(resolved))

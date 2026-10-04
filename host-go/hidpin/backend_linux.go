@@ -37,7 +37,7 @@ func openTransport(path string) (Transport, error) {
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			return nil, fmt.Errorf("cannot open the device (%w). Install the udev rule and replug the "+
-				"board: sudo cp udev/70-hidpin.rules /etc/udev/rules.d/ && sudo udevadm control "+
+				"board: sudo cp udev/60-hidpin.rules /etc/udev/rules.d/ && sudo udevadm control "+
 				"--reload-rules && sudo udevadm trigger", err)
 		}
 		return nil, fmt.Errorf("cannot open the device: %w", err)

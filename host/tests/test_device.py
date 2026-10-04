@@ -177,7 +177,7 @@ class RecordingBackend:
 def test_usb_ids_default(monkeypatch):
     monkeypatch.delenv("HIDPIN_VID", raising=False)
     monkeypatch.delenv("HIDPIN_PID", raising=False)
-    assert device_module.usb_ids() == (0x1209, 0x0001)
+    assert device_module.usb_ids() == (0x1209, 0x6870)
 
 
 def test_usb_ids_from_environment(monkeypatch):
@@ -186,7 +186,7 @@ def test_usb_ids_from_environment(monkeypatch):
     monkeypatch.setenv("HIDPIN_VID", "4660")  # decimal is accepted too
     assert device_module.usb_ids() == (4660, 0x1234)
     monkeypatch.setenv("HIDPIN_PID", "")
-    assert device_module.usb_ids()[1] == 0x0001
+    assert device_module.usb_ids()[1] == 0x6870
 
 
 @pytest.mark.parametrize("value", ["zz", "0x10000", "-1"])

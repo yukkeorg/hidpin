@@ -5,13 +5,13 @@
 
 #include "hidpin/protocol.h"
 
-// Set with -DHIDPIN_USB_VID / -DHIDPIN_USB_PID at configure time. The defaults are the
-// pid.codes test PID, which is valid for in-house testing only, never for redistribution.
+// Set with -DHIDPIN_USB_VID / -DHIDPIN_USB_PID at configure time. The defaults are the ids
+// pid.codes allocated to hidpin (https://pid.codes/1209/6870/).
 #ifndef HIDPIN_USB_VID
 #define HIDPIN_USB_VID 0x1209
 #endif
 #ifndef HIDPIN_USB_PID
-#define HIDPIN_USB_PID 0x0001
+#define HIDPIN_USB_PID 0x6870
 #endif
 #define USB_BCD_DEVICE ((HIDPIN_FW_MAJOR << 8) | (HIDPIN_FW_MINOR << 4) | HIDPIN_FW_PATCH)
 

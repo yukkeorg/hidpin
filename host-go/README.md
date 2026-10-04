@@ -45,7 +45,7 @@ Python CLI, options may come anywhere on the line, and `watch` keeps going when 
 unplugged and plugged in again (it still fails at once when no board is connected). JSON is printed
 without spaces between items; with `--json`, messages about the connection go to stderr.
 
-Non-root access needs the udev rule (`sudo cp udev/70-hidpin.rules /etc/udev/rules.d/`, then
+Non-root access needs the udev rule (`sudo cp udev/60-hidpin.rules /etc/udev/rules.d/`, then
 replug the board). A firmware built with other USB ids is found with `HIDPIN_VID` / `HIDPIN_PID`.
 
 ## The library

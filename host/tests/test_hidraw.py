@@ -6,7 +6,7 @@ from hidpin import _hidraw, device as device_module
 from hidpin.device import HidpinError
 
 
-def make_sysfs(tmp_path, *, vendor="00001209", product="00000001", serial="DF60BCA003562839"):
+def make_sysfs(tmp_path, *, vendor="00001209", product="00006870", serial="DF60BCA003562839"):
     """Builds the sysfs layout the kernel creates for a USB HID device."""
     usb_device = tmp_path / "devices" / "usb3" / "3-2"
     interface = usb_device / "3-2:1.0"
@@ -30,12 +30,12 @@ def make_sysfs(tmp_path, *, vendor="00001209", product="00000001", serial="DF60B
 
 def test_enumerate_reads_sysfs(tmp_path, monkeypatch):
     monkeypatch.setattr(_hidraw, "SYSFS_HIDRAW", make_sysfs(tmp_path))
-    entries = _hidraw.enumerate(0x1209, 0x0001)
+    entries = _hidraw.enumerate(0x1209, 0x6870)
     assert len(entries) == 1
     entry = entries[0]
     assert entry["path"] == b"/dev/hidraw0"
     assert entry["vendor_id"] == 0x1209
-    assert entry["product_id"] == 0x0001
+    assert entry["product_id"] == 0x6870
     assert entry["serial_number"] == "DF60BCA003562839"
     assert entry["manufacturer_string"] == "yukke.org"
     assert entry["product_string"] == "hidpin"
@@ -43,7 +43,7 @@ def test_enumerate_reads_sysfs(tmp_path, monkeypatch):
 
 def test_enumerate_filters_by_vendor_and_product(tmp_path, monkeypatch):
     monkeypatch.setattr(_hidraw, "SYSFS_HIDRAW", make_sysfs(tmp_path))
-    assert _hidraw.enumerate(0x2E8A, 0x0001) == []
+    assert _hidraw.enumerate(0x2E8A, 0x6870) == []
     assert _hidraw.enumerate(0x1209, 0x000A) == []
     assert len(_hidraw.enumerate()) == 1
 

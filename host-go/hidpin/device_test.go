@@ -170,12 +170,12 @@ func TestCloseClosesTransport(t *testing.T) {
 func TestUSBIDsFromEnvironment(t *testing.T) {
 	t.Setenv("HIDPIN_VID", "")
 	t.Setenv("HIDPIN_PID", "")
-	if vid, pid, err := hidpin.USBIDs(); err != nil || vid != 0x1209 || pid != 0x0001 {
+	if vid, pid, err := hidpin.USBIDs(); err != nil || vid != 0x1209 || pid != 0x6870 {
 		t.Errorf("defaults %#x %#x %v", vid, pid, err)
 	}
-	t.Setenv("HIDPIN_PID", "0x6870")
+	t.Setenv("HIDPIN_PID", "0x0001")
 	t.Setenv("HIDPIN_VID", "4660")
-	if vid, pid, err := hidpin.USBIDs(); err != nil || vid != 4660 || pid != 0x6870 {
+	if vid, pid, err := hidpin.USBIDs(); err != nil || vid != 4660 || pid != 0x0001 {
 		t.Errorf("overrides %#x %#x %v", vid, pid, err)
 	}
 	for _, bad := range []string{"zz", "0x10000", "-1"} {

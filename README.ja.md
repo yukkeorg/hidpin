@@ -50,7 +50,7 @@ BOOTSEL ボタンを押しながら USB をつなぎ、現れたドライブに 
 ### 2. ホスト側を用意する（Linux）
 
 ```
-sudo cp udev/70-hidpin.rules /etc/udev/rules.d/
+sudo cp udev/60-hidpin.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
@@ -145,21 +145,27 @@ cd host && uv run --group dev pytest
 
 ## USB の識別番号について
 
-既定値は pid.codes のテスト用 PID **1209:0001**。これは**社内でのテスト専用**で、
-再配布・販売・製造する機器には使えない。配布するなら [pid.codes](https://pid.codes/howto/) で
-正式な PID を取得する（公開リポジトリと OSS ライセンスがあれば無償）。
+hidpin には [pid.codes](https://pid.codes/1209/6870/) から割り当てられた専用の番号
+**1209:6870** がある。ファームウェア、ホストのツール、udev ルールは、既定でこの番号を使う。
 
-取得した番号でのビルドと接続:
+ファームウェアを改造した機器を配布するなら、別の PID を取得する。公開リポジトリと OSS ライセンスが
+あれば、pid.codes で無償で取得できる（[手順](https://pid.codes/howto/)）。手元での試作には
+pid.codes のテスト用 PID 1209:0001 を使ってよいが、再配布・販売・製造する機器には使えない。
+
+別の番号でのビルドと接続:
 
 ```
-cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico -DHIDPIN_USB_PID=0x1234
+cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico -DHIDPIN_USB_PID=0x0001
 cmake --build build/pico
 
-HIDPIN_PID=0x1234 hidpin list        # ホスト側は環境変数で合わせる
+HIDPIN_PID=0x0001 hidpin list        # ホスト側は環境変数で合わせる
 ```
 
 `HIDPIN_USB_VID` / `HIDPIN_USB_PID` がファームウェア側、`HIDPIN_VID` / `HIDPIN_PID` が
-ホスト側の指定。udev ルール（`udev/70-hidpin.rules`）の `idProduct` は手で書き換える。
+ホスト側の指定。udev ルール（`udev/60-hidpin.rules`）の `idProduct` は手で書き換える。
+
+ビルドディレクトリは、構成したときの PID を覚えている。1209:6870 への切り替え前に構成したものは
+1209:0001 のままビルドされるので、`-DHIDPIN_USB_PID=0x6870` を付けて構成し直すか、削除する。
 
 ## ライセンス
 
