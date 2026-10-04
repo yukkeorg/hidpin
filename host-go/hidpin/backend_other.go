@@ -16,7 +16,14 @@ type systemBus struct{}
 
 // SystemBus is the bus of the operating system. This one has no backend: every call fails with
 // ErrUnsupportedPlatform.
-func SystemBus() Bus { return systemBus{} }
+func SystemBus() Bus {
+	return systemBus{}
+}
 
-func (systemBus) Devices() ([]Entry, error)           { return nil, ErrUnsupportedPlatform }
-func (systemBus) Open(entry Entry) (Transport, error) { return nil, ErrUnsupportedPlatform }
+func (systemBus) Devices() ([]Entry, error) {
+	return nil, ErrUnsupportedPlatform
+}
+
+func (systemBus) Open(entry Entry) (Transport, error) {
+	return nil, ErrUnsupportedPlatform
+}

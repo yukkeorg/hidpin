@@ -255,12 +255,25 @@ func (l *watchLoop) connect(entry Entry) error {
 	l.readers.Add(1)
 	go l.read(c)
 
-	l.emit(Connected{Serial: entry.Serial, Path: entry.Path, Info: info, PinConfig: found, Reconnected: reconnected})
+	l.emit(Connected{
+		Serial:      entry.Serial,
+		Path:        entry.Path,
+		Info:        info,
+		PinConfig:   found,
+		Reconnected: reconnected,
+	})
+
 	// Losing the connection always sends the outputs back to their initial level (PROTOCOL.md 7.2).
 	if outputs := MaskToGPIOs(found.OutputsMask()); reconnected && len(outputs) > 0 {
-		l.emit(OutputsReset{GPIOs: outputs, Cause: OutputResetReconnect})
+		l.emit(OutputsReset{
+			GPIOs: outputs,
+			Cause: OutputResetReconnect,
+		})
 	} else if len(driven) > 0 {
-		l.emit(OutputsReset{GPIOs: driven, Cause: OutputResetPinConfig})
+		l.emit(OutputsReset{
+			GPIOs: driven,
+			Cause: OutputResetPinConfig,
+		})
 	}
 	if c.awaitingConfig {
 		l.settle.set(settleTimeout)

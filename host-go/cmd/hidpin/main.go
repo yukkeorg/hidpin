@@ -77,7 +77,12 @@ func (e usageError) Error() string { return e.message }
 
 func parseOptions(argv []string) (options, error) {
 	var o options
-	valueFlags := map[string]*string{"--serial": &o.serial, "--active-low": &o.activeLow, "--active-high": &o.activeHigh}
+	valueFlags := map[string]*string{
+		"--serial":      &o.serial,
+		"--active-low":  &o.activeLow,
+		"--active-high": &o.activeHigh,
+	}
+
 	for i := 0; i < len(argv); i++ {
 		arg := argv[i]
 		if arg == "--" {
@@ -120,7 +125,14 @@ var inputModes = map[string]func(uint8) hidpin.PinSetting{
 	"pulldown": hidpin.MonitorPullDown,
 }
 
-var levelWords = map[string]bool{"high": true, "1": true, "on": true, "low": false, "0": false, "off": false}
+var levelWords = map[string]bool{
+	"high": true,
+	"1":    true,
+	"on":   true,
+	"low":  false,
+	"0":    false,
+	"off":  false,
+}
 
 func parseGPIO(text string) (int, error) {
 	gpio, err := strconv.ParseInt(text, 0, 64)
@@ -489,7 +501,10 @@ func (a *app) cmdWatch(ctx context.Context) error {
 	for _, flag := range []struct {
 		list string
 		low  bool
-	}{{a.opts.activeLow, true}, {a.opts.activeHigh, false}} {
+	}{
+		{a.opts.activeLow, true},
+		{a.opts.activeHigh, false},
+	} {
 		gpios, err := parseGPIOList(flag.list)
 		if err != nil {
 			return usageError{message: err.Error()}
@@ -642,7 +657,12 @@ func (a *app) run(ctx context.Context) error {
 
 func run(ctx context.Context, argv []string, stdout, stderr io.Writer) int {
 	opts, err := parseOptions(argv)
-	a := &app{opts: opts, stdout: stdout, stderr: stderr}
+	a := &app{
+		opts:   opts,
+		stdout: stdout,
+		stderr: stderr,
+	}
+
 	if err == nil {
 		err = a.run(ctx)
 	}

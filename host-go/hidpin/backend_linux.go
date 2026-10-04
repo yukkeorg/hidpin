@@ -64,5 +64,10 @@ type systemBus struct{}
 // SystemBus is the bus of the operating system: /dev/hidraw* on Linux.
 func SystemBus() Bus { return systemBus{} }
 
-func (systemBus) Devices() ([]Entry, error)           { return FindDevices() }
-func (systemBus) Open(entry Entry) (Transport, error) { return openTransport(entry.Path) }
+func (systemBus) Devices() ([]Entry, error) {
+	return FindDevices()
+}
+
+func (systemBus) Open(entry Entry) (Transport, error) {
+	return openTransport(entry.Path)
+}
