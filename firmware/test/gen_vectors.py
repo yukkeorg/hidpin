@@ -43,7 +43,7 @@ def main(src, dst):
         "} vec_status_t;",
         "typedef struct {",
         "    const char *name; uint8_t fw_major; uint8_t fw_minor; uint8_t fw_patch; uint8_t board;",
-        "    uint32_t available; uint8_t payload[63];",
+        "    uint32_t available; uint8_t chip; uint8_t chip_revision; uint8_t quirks; uint8_t payload[63];",
         "} vec_device_info_t;",
         "typedef struct {",
         "    const char *name; uint8_t result; uint8_t result_gpio; uint8_t request_id;",
@@ -84,7 +84,8 @@ def main(src, dst):
         payload, _ = byte_array(v["payload"], 63)
         lines.append(
             f"    {{{c_string(v['name'])}, {num(v['fw_major'])}, {num(v['fw_minor'])}, {num(v['fw_patch'])}, "
-            f"{num(v['board'])}, {num(v['available'])}u, {payload}}},"
+            f"{num(v['board'])}, {num(v['available'])}u, {num(v['chip'])}, {num(v['chip_revision'])}, "
+            f"{num(v['quirks'])}, {payload}}},"
         )
     lines.append("};")
 

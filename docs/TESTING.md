@@ -30,11 +30,11 @@ The wiring is 3.3 V. **The RP2040 is not 5 V tolerant**, so do not connect signa
 1. Build the firmware.
 
    ```
-   cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico   # adafruit_qtpy_rp2040 for the QT Py
+   cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico   # pico2 for the Pico 2, adafruit_qtpy_rp2040 for the QT Py
    cmake --build build/pico
    ```
 2. Hold the BOOTSEL button (the BOOT button on the QT Py) while plugging in USB.
-3. A USB drive named `RPI-RP2` appears; copy `build/pico/hidpin.uf2` onto it.
+3. A USB drive named `RPI-RP2` (`RP2350` on the Pico 2) appears; copy `build/pico/hidpin.uf2` onto it.
 
 - [ ] After the copy, the drive disappears by itself and the board restarts
 
@@ -48,7 +48,9 @@ hidpin info
 
 - [ ] `lsusb` shows `1209:6870`
 - [ ] `hidpin list` shows a serial number (16 hexadecimal digits)
-- [ ] The board name and the available GPIOs in `hidpin info` match the board (26 for the Pico, 13 for the QT Py)
+- [ ] The board name and the available GPIOs in `hidpin info` match the board (26 for the Pico and the Pico 2, 13 for the QT Py)
+- [ ] `chip` in `hidpin info` matches the board (`RP2040` on the Pico and the QT Py, `RP2350A` on the Pico 2). On a Pico 2
+      with revision 2 (the A2 stepping), `known problems` shows erratum E9 as well
 - [ ] The status LED lights as soon as the power is on (the on-board LED on the Pico, the NeoPixel in green on the QT Py)
 - [ ] `dmesg` shows it as `hidraw`, not as a keyboard or a mouse
 
@@ -101,6 +103,8 @@ hidpin config set 23=pullup:20   # not an available GPIO on the Pico
 - [ ] `watch` shows `the pin configuration changed` (`CONFIG_CHANGED` in `reason`)
 - [ ] Naming a pin that is not an available GPIO fails, and the configuration does not change
 - [ ] Unplugging and replugging USB returns the pin configuration to the default (every pin `pullup:20`)
+- [ ] On an RP2350 A2 board, `hidpin config set 5=pulldown:20` prints a warning about erratum E9 and still applies
+      the setting; `5=pullup:20` prints none
 
 ## 6. Outputs
 

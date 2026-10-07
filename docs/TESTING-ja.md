@@ -30,11 +30,11 @@ PC 上のユニットテスト（`firmware/test`、`python/tests`、`hidpin/` �
 1. ファームウェアをビルドする。
 
    ```
-   cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico   # QT Py は adafruit_qtpy_rp2040
+   cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico   # Pico 2 は pico2、QT Py は adafruit_qtpy_rp2040
    cmake --build build/pico
    ```
 2. ボードの BOOTSEL ボタン（QT Py は BOOT ボタン）を押しながら USB をつなぐ。
-3. `RPI-RP2` という USB メモリが現れるので、`build/pico/hidpin.uf2` をコピーする。
+3. `RPI-RP2`（Pico 2 は `RP2350`）という USB メモリが現れるので、`build/pico/hidpin.uf2` をコピーする。
 
 - [ ] コピー後にドライブが自動的に消え、ボードが再起動する
 
@@ -48,7 +48,9 @@ hidpin info
 
 - [ ] `lsusb` に `1209:6870` が出る
 - [ ] `hidpin list` にシリアル番号（16 桁の 16 進数）が出る
-- [ ] `hidpin info` のボード名と利用可能GPIOが、つないだボードと一致する（Pico は 26 本、QT Py は 13 本）
+- [ ] `hidpin info` のボード名と利用可能GPIOが、つないだボードと一致する（Pico と Pico 2 は 26 本、QT Py は 13 本）
+- [ ] `hidpin info` の `chip` がボードと一致する（Pico と QT Py は `RP2040`、Pico 2 は `RP2350A`）。Pico 2 で版が 2（A2）なら、
+      `known problems` にエラッタ E9 も出る
 - [ ] 電源が入った時点で状態 LED が点灯する（Pico は本体の LED、QT Py は NeoPixel が緑）
 - [ ] `dmesg` に `hidraw` として現れ、キーボードやマウスとしては認識されない
 
@@ -101,6 +103,8 @@ hidpin config set 23=pullup:20   # Pico では利用可能GPIOではない
 - [ ] `watch` に `the pin configuration changed` が出る（`reason` に `CONFIG_CHANGED`）
 - [ ] 利用可能GPIOでないピンを指定すると、エラーになり設定は変わらない
 - [ ] USB を抜き差しすると、ピン設定が既定（全ピン `pullup:20`）に戻る
+- [ ] RP2350 の A2 版のボードでは、`hidpin config set 5=pulldown:20` でエラッタ E9 の警告が出て、設定はそのまま適用される。
+      `5=pullup:20` では警告が出ない
 
 ## 6. 出力
 

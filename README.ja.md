@@ -2,24 +2,29 @@
 
 [English](README.md) | **日本語**
 
-RP2040 マイコンボードの GPIO を監視し、その状態を USB-HID でコンピュータに伝える仕組み。
+RP2040 / RP2350 マイコンボードの GPIO を監視し、その状態を USB-HID でコンピュータに伝える仕組み。
 ボードは**ベンダー定義の HID デバイス**として認識されるので、OS 標準のドライバだけで動く。
 キーボードやマウスのふりはしないため、ホスト側のアプリから全ピンの状態をそのまま読める。
 
-対応ボード（for RP2040 boards）:
+対応ボード（for RP2040 / RP2350 boards）:
 
 | ボード | 利用可能GPIO | 状態 LED |
 |---|---|---|
 | Raspberry Pi Pico | 26 本（GPIO0–22, 26–28） | 本体の LED（GPIO25）：点灯、入出力時に一瞬消える |
 | Adafruit QT Py RP2040 | 13 本（GPIO3–6, 20, 22–29） | NeoPixel（GPIO12）：緑、入出力時に一瞬青 |
+| Raspberry Pi Pico 2 | 26 本（GPIO0–22, 26–28） | 本体の LED（GPIO25）：点灯、入出力時に一瞬消える |
 
 状態 LED は電源が入るとすぐに点く。「入出力」は、監視ピンのエッジイベントと出力指示の適用のこと。
 そのたびに約 100 ms だけ表示が変わる。
 
-> **現在の状態**: PC 上のテスト（ファームウェアのコア 33 件、ホスト 60 件）に加えて、
+RP2350 の初期の版（A2）では、内蔵プルダウンで入力を LOW に保てない（エラッタ E9）。
+ボードがこのことを申告し、`hidpin info` に表示されるほか、プルダウンで監視するピンを設定するとホストのツールが警告する。
+プルアップを使うか、8.2 kΩ 以下の外付けのプルダウンと `nopull` を組み合わせる。既定の設定はプルアップなので影響しない。
+
+> **現在の状態**: PC 上のテスト（ファームウェアのコア 33 件、ホスト 65 件）に加えて、
 > **Adafruit QT Py RP2040 の実機で動作を確認済み**（2026-09-17）。
 > 認識、監視とエッジイベント、チャタリング除去、ピン設定、出力、バスリセット時の復帰まで確認した。
-> Raspberry Pi Pico は未確認。手順は [docs/TESTING-ja.md](docs/TESTING-ja.md) にある。
+> Raspberry Pi Pico と Pico 2 は未確認。手順は [docs/TESTING-ja.md](docs/TESTING-ja.md) にある。
 
 ## できること
 
@@ -39,7 +44,7 @@ RP2040 マイコンボードの GPIO を監視し、その状態を USB-HID で�
 Pico SDK は `PICO_SDK_PATH` があればそれを使い、なければ 2.3.1 を自動で取得する。
 
 ```
-cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico   # QT Py は adafruit_qtpy_rp2040
+cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico   # Pico 2 は pico2、QT Py は adafruit_qtpy_rp2040
 cmake --build build/pico
 ```
 

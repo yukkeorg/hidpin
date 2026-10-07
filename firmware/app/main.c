@@ -100,6 +100,7 @@ int main(void)
         .board = HIDPIN_BOARD_ID,
         .available = HIDPIN_BOARD_AVAILABLE,
     };
+    board_identify_chip(&info);
     hp_engine_init(&engine, &hw, &info, time_us_64());
 
     tud_init(BOARD_TUD_RHPORT);

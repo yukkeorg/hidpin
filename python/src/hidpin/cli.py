@@ -5,10 +5,18 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import warnings
 
 from hidpin import protocol
-from hidpin.device import Device, HidpinError, find_devices
-from hidpin.protocol import PinMode, PinSetting, Reason, StatusFlags, StatusReport
+from hidpin.device import Device, HidpinError, PullDownUnreliableWarning, find_devices
+from hidpin.protocol import (
+    PinMode,
+    PinSetting,
+    Quirk,
+    Reason,
+    StatusFlags,
+    StatusReport,
+)
 
 INPUT_MODES = {
     "nopull": PinMode.INPUT,
@@ -114,6 +122,10 @@ def cmd_info(args) -> int:
                         "periodic_interval_ms": info.periodic_interval_ms,
                         "events_per_report": info.events_per_report,
                         "event_queue_size": info.event_queue_size,
+                        "chip": info.chip,
+                        "chip_name": info.chip_name,
+                        "chip_revision": info.chip_revision,
+                        "quirks": [quirk.name for quirk in Quirk if info.quirks & quirk],
                     }
                 )
             )
@@ -125,6 +137,10 @@ def cmd_info(args) -> int:
         print(f"available GPIOs   : {len(info.available_gpios)} pins {info.available_gpios}")
         print(f"periodic interval : {info.periodic_interval_ms} ms")
         print(f"events per report : {info.events_per_report} (queue of {info.event_queue_size})")
+        chip = info.chip_name if info.chip == 0 else f"{info.chip_name} (revision {info.chip_revision})"
+        print(f"chip              : {chip}")
+        if info.pull_down_unreliable:
+            print("known problems    : internal pull-downs are unreliable (RP2350 erratum E9)")
     return 0
 
 
@@ -311,11 +327,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def show_warning(message, category, filename, lineno, file=None, line=None) -> None:
+    print(f"warning: {message}", file=sys.stderr)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        return args.func(args)
+        with warnings.catch_warnings():
+            warnings.simplefilter("always", PullDownUnreliableWarning)
+            warnings.showwarning = show_warning
+            return args.func(args)
     except KeyboardInterrupt:
         return 0
     except HidpinError as error:

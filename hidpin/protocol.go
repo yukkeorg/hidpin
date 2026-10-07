@@ -156,6 +156,7 @@ type Board uint8
 const (
 	BoardPico       Board = 1
 	BoardQTPyRP2040 Board = 2
+	BoardPico2      Board = 3
 )
 
 // Name is the product name of the board.
@@ -165,9 +166,41 @@ func (b Board) Name() string {
 		return "Raspberry Pi Pico"
 	case BoardQTPyRP2040:
 		return "Adafruit QT Py RP2040"
+	case BoardPico2:
+		return "Raspberry Pi Pico 2"
 	}
 	return fmt.Sprintf("unknown board %d", uint8(b))
 }
+
+// Chip is the microcontroller in the device information (PROTOCOL.md 5.2). 0 means not reported.
+type Chip uint8
+
+const (
+	ChipRP2040  Chip = 1
+	ChipRP2350A Chip = 2
+)
+
+// Name is the name of the microcontroller.
+func (c Chip) Name() string {
+	switch c {
+	case 0:
+		return "not reported"
+	case ChipRP2040:
+		return "RP2040"
+	case ChipRP2350A:
+		return "RP2350A"
+	}
+	return fmt.Sprintf("unknown chip %d", uint8(c))
+}
+
+// Quirks are known problems of the hardware (PROTOCOL.md 5.3).
+type Quirks uint8
+
+// QuirkPullDownUnreliable means the internal pull-downs cannot hold an input low (RP2350 erratum E9).
+const QuirkPullDownUnreliable Quirks = 0x01
+
+// Has reports whether every quirk in q is set.
+func (q Quirks) Has(quirk Quirks) bool { return q&quirk == quirk }
 
 // MaskToGPIOs lists the GPIO numbers whose bits are set.
 func MaskToGPIOs(mask uint32) []int {
@@ -286,9 +319,16 @@ type DeviceInfo struct {
 	Available          uint32
 	EventsPerReport    uint8
 	EventQueueSize     uint8
+	Chip               Chip
+	ChipRevision       uint8
+	Quirks             Quirks
 }
 
 func (i DeviceInfo) BoardName() string { return i.Board.Name() }
+
+// PullDownUnreliable reports that the internal pull-downs cannot hold an input low (RP2350
+// erratum E9). Pins monitored with the pull-down can then keep reading HIGH when left open.
+func (i DeviceInfo) PullDownUnreliable() bool { return i.Quirks.Has(QuirkPullDownUnreliable) }
 
 func (i DeviceInfo) FirmwareVersion() string {
 	return fmt.Sprintf("%d.%d.%d", i.Firmware[0], i.Firmware[1], i.Firmware[2])
@@ -310,6 +350,9 @@ func DecodeDeviceInfo(p []byte) (DeviceInfo, error) {
 		Available:          binary.LittleEndian.Uint32(p[8:]),
 		EventsPerReport:    p[12],
 		EventQueueSize:     p[13],
+		Chip:               Chip(p[14]),
+		ChipRevision:       p[15],
+		Quirks:             Quirks(p[16]),
 	}, nil
 }
 
@@ -324,6 +367,9 @@ func (i DeviceInfo) Encode() []byte {
 	binary.LittleEndian.PutUint32(p[8:], i.Available)
 	p[12] = i.EventsPerReport
 	p[13] = i.EventQueueSize
+	p[14] = byte(i.Chip)
+	p[15] = i.ChipRevision
+	p[16] = byte(i.Quirks)
 	return p
 }
 
@@ -413,7 +459,13 @@ func (c PinConfig) mask(match func(PinSetting) bool) uint32 {
 }
 
 func (c PinConfig) MonitoredMask() uint32 { return c.mask(PinSetting.IsMonitored) }
-func (c PinConfig) OutputsMask() uint32   { return c.mask(PinSetting.IsOutput) }
+
+// PullDownGPIOs lists the GPIOs monitored with the internal pull-down.
+func (c PinConfig) PullDownGPIOs() []int {
+	return MaskToGPIOs(c.mask(func(s PinSetting) bool { return s.Mode == ModePullDown }))
+}
+
+func (c PinConfig) OutputsMask() uint32 { return c.mask(PinSetting.IsOutput) }
 
 // PinConfigReport is the pin configuration report, report ID 3 (PROTOCOL.md 6).
 type PinConfigReport struct {

@@ -1,16 +1,58 @@
 """Device-level behaviour against a fake hidapi handle."""
 
+import warnings
+from dataclasses import replace
+
 import pytest
 from fake_hid import PICO_AVAILABLE, FakeHandle
 
 from hidpin import device as device_module, protocol
-from hidpin.device import Device, HidpinError, PinConfigConflict, PinConfigRejected, ProtocolVersionError
+from hidpin.device import (
+    Device,
+    HidpinError,
+    PinConfigConflict,
+    PinConfigRejected,
+    ProtocolVersionError,
+    PullDownUnreliableWarning,
+)
 from hidpin.protocol import PinMode, PinSetting, Reason, Result, StatusFlags
 
 
 def make_device(**kwargs) -> tuple[Device, FakeHandle]:
     handle = FakeHandle(**kwargs)
     return Device(handle, serial="ABCD0123456789EF"), handle
+
+
+def make_rp2350_a2() -> tuple[Device, FakeHandle]:
+    device, handle = make_device()
+    handle.info = replace(
+        handle.info,
+        board=protocol.Board.PICO2,
+        chip=protocol.Chip.RP2350A,
+        chip_revision=2,
+        quirks=protocol.Quirk.PULL_DOWN_UNRELIABLE,
+    )
+    return device, handle
+
+
+def test_pull_down_warns_on_rp2350_a2():
+    device, _ = make_rp2350_a2()
+    with pytest.warns(PullDownUnreliableWarning, match="GPIO5 uses the internal pull-down"):
+        device.update_pins({5: PinSetting.monitor(PinMode.PULLDOWN)})
+
+
+def test_pull_up_does_not_warn_on_rp2350_a2():
+    device, _ = make_rp2350_a2()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        device.update_pins({5: PinSetting.monitor(PinMode.PULLUP)})
+
+
+def test_pull_down_does_not_warn_without_the_quirk():
+    device, _ = make_device()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        device.update_pins({5: PinSetting.monitor(PinMode.PULLDOWN)})
 
 
 def test_info_is_read_once():

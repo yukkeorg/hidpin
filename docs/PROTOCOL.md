@@ -172,7 +172,10 @@ The time the change started is `timestamp_us - age_us` (unless saturated).
 | 8 | `u32` | `available` | Bitmask of the **available GPIOs** |
 | 12 | `u8` | `events_per_report` | Maximum number of **edge events** in one **status report**. `7` in protocol version 1 |
 | 13 | `u8` | `event_queue_size` | Size of the **edge event** queue. Currently `32` |
-| 14 | `u8`×49 | — | Reserved |
+| 14 | `u8` | `chip` | The microcontroller (5.2). 0 means not reported |
+| 15 | `u8` | `chip_revision` | The revision of the chip as the Pico SDK reports it (5.2). 0 means not reported |
+| 16 | `u8` | `quirks` | Bit flags for known problems of the hardware (5.3) |
+| 17 | `u8`×46 | — | Reserved |
 
 - Contents sent with Set_Report are ignored.
 - If `protocol_version` differs from the version the **host** supports, the **host** stops communicating and reports an error.
@@ -183,6 +186,28 @@ The time the change started is `timestamp_us - age_us` (unless saturated).
 |---|---|---|
 | 1 | Raspberry Pi Pico | `0x1C7FFFFF` (GPIO0–22, 26–28) |
 | 2 | Adafruit QT Py RP2040 | `0x3FD00078` (GPIO3–6, 20, 22–29) |
+| 3 | Raspberry Pi Pico 2 | `0x1C7FFFFF` (GPIO0–22, 26–28) |
+
+### 5.2 `chip` and `chip_revision`
+
+| `chip` | Microcontroller | `chip_revision` |
+|---|---|---|
+| 1 | RP2040 | `rp2040_chip_version()`: 1 = B0/B1, 2 = B2 |
+| 2 | RP2350A | `rp2350_chip_version()`: 2 = A2, 3 or more = a later stepping |
+
+Firmware older than these fields sends 0 in both, as they used to be reserved.
+
+### 5.3 `quirks` (bit flags)
+
+| Bit | Name | Meaning |
+|---|---|---|
+| 0 | `PULL_DOWN_UNRELIABLE` | The internal pull-downs cannot hold an input low (RP2350 erratum E9, on the A2 stepping). Set when `chip` = 2 and `chip_revision` ≤ 2 |
+
+On a chip with `PULL_DOWN_UNRELIABLE`, a monitored input whose voltage falls between the logic levels leaks
+current and stays at about 2.2 V; the internal pull-down is too weak to pull it low, so an open pin with
+`mode` = 3 can keep reading HIGH. The internal pull-up works. The **device** still accepts `mode` = 3, and
+the **host** warns when it is used; the remedy is an external pull-down of 8.2 kΩ or less (with `mode` = 1),
+or wiring the input for the pull-up (`mode` = 2).
 
 ## 6. Pin configuration (ID `0x03`, Feature, 63 bytes)
 

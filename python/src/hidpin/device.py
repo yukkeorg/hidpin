@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import random
+import warnings
 from dataclasses import dataclass
 from types import TracebackType
 
@@ -87,6 +88,19 @@ class PinConfigConflict(HidpinError):
         )
         self.expected = expected
         self.seen = seen
+
+
+class PullDownUnreliableWarning(UserWarning):
+    """Pins are monitored with the internal pull-down on a chip that cannot rely on it (PROTOCOL.md 5.3)."""
+
+    def __init__(self, gpios: list[int]) -> None:
+        names = ", ".join(f"GPIO{gpio}" for gpio in gpios)
+        verb = "uses" if len(gpios) == 1 else "use"
+        super().__init__(
+            f"{names} {verb} the internal pull-down, which this chip cannot rely on (RP2350 erratum E9): "
+            "an open input can stay HIGH. Use an external pull-down of 8.2 kOhm or less with nopull, or the pull-up"
+        )
+        self.gpios = gpios
 
 
 @dataclass(frozen=True)
@@ -265,6 +279,8 @@ class Device:
             raise PinConfigRejected(report.result, report.result_gpio)
         if report.config != config:
             raise HidpinError("the configuration the device applied differs from the one that was sent")
+        if self.info.pull_down_unreliable and config.pull_down_gpios:
+            warnings.warn(PullDownUnreliableWarning(config.pull_down_gpios), stacklevel=2)
         return report
 
     def update_pins(self, settings: dict[int, PinSetting]) -> PinConfigReport:

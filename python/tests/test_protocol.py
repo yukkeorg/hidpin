@@ -52,12 +52,19 @@ def test_device_info_vectors(vectors):
         assert info.available == num(case["available"]), case["name"]
         assert info.gpio_count == protocol.GPIO_COUNT, case["name"]
         assert info.events_per_report == protocol.EVENTS_PER_REPORT, case["name"]
+        assert (info.chip, info.chip_revision, info.quirks) == (
+            case["chip"],
+            case["chip_revision"],
+            case["quirks"],
+        ), case["name"]
         assert protocol.encode_device_info(info) == payload, case["name"]
 
 
 def test_device_info_board_names(vectors):
     infos = [protocol.decode_device_info(bytes.fromhex(c["payload"])) for c in vectors["device_info"]]
-    assert [info.board_name for info in infos] == ["Raspberry Pi Pico", "Adafruit QT Py RP2040"]
+    assert [info.board_name for info in infos] == ["Raspberry Pi Pico", "Adafruit QT Py RP2040", "Raspberry Pi Pico 2"]
+    assert [info.chip_name for info in infos] == ["not reported", "RP2040", "RP2350A"]
+    assert [info.pull_down_unreliable for info in infos] == [False, False, True]
     assert infos[0].available_gpios == list(range(0, 23)) + [26, 27, 28]
     assert infos[1].available_gpios == [3, 4, 5, 6, 20, 22, 23, 24, 25, 26, 27, 28, 29]
 

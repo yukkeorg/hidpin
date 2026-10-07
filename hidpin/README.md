@@ -90,6 +90,12 @@ for {
 `*PinConfigConflictError` when another process wrote at the same time. `MissedReports` counts
 status reports the host failed to read.
 
+`DeviceInfo` also names the chip (`Chip`, `ChipRevision`) and its known problems (`Quirks`,
+PROTOCOL.md 5.3). On the first RP2350 stepping (A2), `PullDownUnreliable()` is true: the internal
+pull-downs cannot hold an input low (erratum E9), so a pin monitored with `MonitorPullDown` can keep
+reading HIGH when left open. The library prints nothing and still applies such a setting; check
+`PullDownUnreliable()` against `PinConfig.PullDownGPIOs()` to warn, as the `hidpin` command does.
+
 To test your own code without a board, wrap `hidpintest.New(hidpin.ProtocolVersion)` with
 `hidpin.NewDevice`; see the package example.
 

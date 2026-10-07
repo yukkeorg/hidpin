@@ -87,12 +87,27 @@ class Board(IntEnum):
 
     PICO = 1
     QTPY_RP2040 = 2
+    PICO2 = 3
 
 
 BOARD_NAMES = {
     Board.PICO: "Raspberry Pi Pico",
     Board.QTPY_RP2040: "Adafruit QT Py RP2040",
+    Board.PICO2: "Raspberry Pi Pico 2",
 }
+
+
+class Chip(IntEnum):
+    """Microcontroller reported in the device information (PROTOCOL.md 5.2); 0 means not reported."""
+
+    RP2040 = 1
+    RP2350A = 2
+
+
+class Quirk(IntFlag):
+    """Known problems of the hardware (PROTOCOL.md 5.3)."""
+
+    PULL_DOWN_UNRELIABLE = 0x01  # RP2350 erratum E9: internal pull-downs cannot hold an input low
 
 
 def mask_to_gpios(mask: int) -> list[int]:
@@ -104,6 +119,15 @@ def board_name(board: int) -> str:
         return BOARD_NAMES[Board(board)]
     except ValueError:
         return f"unknown board {board}"
+
+
+def chip_name(chip: int) -> str:
+    if chip == 0:
+        return "not reported"
+    try:
+        return Chip(chip).name
+    except ValueError:
+        return f"unknown chip {chip}"
 
 
 @dataclass(frozen=True)
@@ -203,10 +227,22 @@ class DeviceInfo:
     available: int
     events_per_report: int
     event_queue_size: int
+    chip: int = 0
+    chip_revision: int = 0
+    quirks: int = 0
 
     @property
     def board_name(self) -> str:
         return board_name(self.board)
+
+    @property
+    def chip_name(self) -> str:
+        return chip_name(self.chip)
+
+    @property
+    def pull_down_unreliable(self) -> bool:
+        """The internal pull-downs cannot hold an input low (RP2350 erratum E9)."""
+        return bool(self.quirks & Quirk.PULL_DOWN_UNRELIABLE)
 
     @property
     def firmware_version(self) -> str:
@@ -223,6 +259,7 @@ def decode_device_info(payload: bytes) -> DeviceInfo:
     version, major, minor, patch, board, gpio_count = struct.unpack_from("<BBBBBB", payload, 0)
     interval, available = struct.unpack_from("<HI", payload, 6)
     events_per_report, queue_size = struct.unpack_from("<BB", payload, 12)
+    chip, chip_revision, quirks = struct.unpack_from("<BBB", payload, 14)
     return DeviceInfo(
         protocol_version=version,
         firmware=(major, minor, patch),
@@ -232,6 +269,9 @@ def decode_device_info(payload: bytes) -> DeviceInfo:
         available=available,
         events_per_report=events_per_report,
         event_queue_size=queue_size,
+        chip=chip,
+        chip_revision=chip_revision,
+        quirks=quirks,
     )
 
 
@@ -242,6 +282,7 @@ def encode_device_info(info: DeviceInfo) -> bytes:
     )
     struct.pack_into("<HI", payload, 6, info.periodic_interval_ms, info.available)
     struct.pack_into("<BB", payload, 12, info.events_per_report, info.event_queue_size)
+    struct.pack_into("<BBB", payload, 14, info.chip, info.chip_revision, info.quirks)
     return bytes(payload)
 
 
@@ -337,6 +378,11 @@ class PinConfig:
     @property
     def outputs_mask(self) -> int:
         return sum(1 << gpio for gpio, pin in enumerate(self.pins) if pin.is_output)
+
+    @property
+    def pull_down_gpios(self) -> list[int]:
+        """GPIOs monitored with the internal pull-down."""
+        return [gpio for gpio, pin in enumerate(self.pins) if pin.mode == PinMode.PULLDOWN]
 
 
 @dataclass(frozen=True)

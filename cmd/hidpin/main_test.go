@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -108,6 +109,44 @@ func TestInfoCommand(t *testing.T) {
 	if code != 0 || json.Unmarshal([]byte(out), &payload) != nil || payload["board_name"] != "Raspberry Pi Pico" ||
 		payload["firmware"] != "0.1.0" || len(payload["available_gpios"].([]any)) != 26 {
 		t.Errorf("%d %q", code, out)
+	}
+}
+
+func asRP2350A2(fake *hidpintest.Fake) {
+	fake.Info.Board = hidpin.BoardPico2
+	fake.Info.Chip = hidpin.ChipRP2350A
+	fake.Info.ChipRevision = 2
+	fake.Info.Quirks = hidpin.QuirkPullDownUnreliable
+}
+
+func TestInfoShowsTheChipAndKnownProblems(t *testing.T) {
+	asRP2350A2(withFake(t))
+	code, out, _ := runCLI(context.Background(), "info")
+	if code != 0 || !strings.Contains(out, "Raspberry Pi Pico 2") || !strings.Contains(out, "RP2350A (revision 2)") ||
+		!strings.Contains(out, "erratum E9") {
+		t.Errorf("%d %q", code, out)
+	}
+	code, out, _ = runCLI(context.Background(), "--json", "info")
+	var payload map[string]any
+	if code != 0 || json.Unmarshal([]byte(out), &payload) != nil || payload["chip_name"] != "RP2350A" ||
+		!reflect.DeepEqual(payload["quirks"], []any{"PULL_DOWN_UNRELIABLE"}) {
+		t.Errorf("%d %q", code, out)
+	}
+}
+
+func TestConfigSetWarnsAboutPullDownsOnRP2350A2(t *testing.T) {
+	asRP2350A2(withFake(t))
+	code, out, errOut := runCLI(context.Background(), "config", "set", "5=pulldown:20")
+	if code != 0 || !strings.HasPrefix(errOut, "warning: GPIO5 uses the internal pull-down") || !strings.Contains(out, "GPIO5") {
+		t.Errorf("%d %q %q", code, out, errOut)
+	}
+}
+
+func TestConfigSetDoesNotWarnAboutPullUpsOnRP2350A2(t *testing.T) {
+	asRP2350A2(withFake(t))
+	code, _, errOut := runCLI(context.Background(), "config", "set", "6=pullup:20")
+	if code != 0 || errOut != "" {
+		t.Errorf("%d %q", code, errOut)
 	}
 }
 

@@ -39,6 +39,9 @@ static void test_device_info_vectors(void)
             .fw_patch = v->fw_patch,
             .board = v->board,
             .available = v->available,
+            .chip = v->chip,
+            .chip_revision = v->chip_revision,
+            .quirks = v->quirks,
         };
         uint8_t out[HP_REPORT_PAYLOAD_LEN];
         memset(out, 0xAA, sizeof(out));

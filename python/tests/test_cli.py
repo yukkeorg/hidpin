@@ -1,6 +1,7 @@
 """Command line parsing and the commands themselves, against a fake device."""
 
 import argparse
+from dataclasses import replace
 
 import pytest
 from fake_hid import FakeHandle
@@ -71,6 +72,33 @@ def test_info_command(fake_device, capsys):
     out = capsys.readouterr().out
     assert "Raspberry Pi Pico" in out
     assert "26 pins" in out
+
+
+def as_rp2350_a2(handle: FakeHandle) -> None:
+    handle.info = replace(
+        handle.info,
+        board=protocol.Board.PICO2,
+        chip=protocol.Chip.RP2350A,
+        chip_revision=2,
+        quirks=protocol.Quirk.PULL_DOWN_UNRELIABLE,
+    )
+
+
+def test_info_shows_the_chip_and_known_problems(fake_device, capsys):
+    as_rp2350_a2(fake_device[1])
+    assert cli.main(["info"]) == 0
+    out = capsys.readouterr().out
+    assert "Raspberry Pi Pico 2" in out
+    assert "RP2350A (revision 2)" in out
+    assert "erratum E9" in out
+
+
+def test_config_set_warns_about_pull_downs_on_rp2350_a2(fake_device, capsys):
+    as_rp2350_a2(fake_device[1])
+    assert cli.main(["config", "set", "5=pulldown:20"]) == 0
+    captured = capsys.readouterr()
+    assert captured.err.startswith("warning: GPIO5 uses the internal pull-down")
+    assert "GPIO5 is now" in captured.out
 
 
 def test_info_command_json(fake_device, capsys):

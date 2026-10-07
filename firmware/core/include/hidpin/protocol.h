@@ -49,6 +49,14 @@
 
 #define HP_BOARD_PICO 1u
 #define HP_BOARD_QTPY_RP2040 2u
+#define HP_BOARD_PICO2 3u
+
+// Microcontroller in the device information (PROTOCOL.md 5.2). 0 means not reported.
+#define HP_CHIP_RP2040 1u
+#define HP_CHIP_RP2350A 2u
+
+// Known problems of the hardware (PROTOCOL.md 5.3).
+#define HP_QUIRK_PULL_DOWN_UNRELIABLE 0x01u  // RP2350 erratum E9
 
 #define HP_HID_REPORT_DESCRIPTOR_LEN 47u
 
@@ -79,6 +87,9 @@ typedef struct {
     uint8_t fw_patch;
     uint8_t board;
     uint32_t available;
+    uint8_t chip;
+    uint8_t chip_revision;
+    uint8_t quirks;
 } hp_device_info_t;
 
 typedef struct {

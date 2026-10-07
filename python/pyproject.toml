@@ -1,7 +1,7 @@
 [project]
 name = "hidpin"
 version = "0.1.0"
-description = "Host library and CLI for hidpin GPIO monitoring devices (RP2040)"
+description = "Host library and CLI for hidpin GPIO monitoring devices (RP2040 / RP2350)"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "yukke.org" }]

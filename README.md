@@ -2,7 +2,7 @@
 
 **English** | [日本語](README.ja.md)
 
-hidpin watches the GPIO pins of an RP2040 board and reports their state to a computer over
+hidpin watches the GPIO pins of an RP2040 or RP2350 board and reports their state to a computer over
 USB-HID. The board appears as a **vendor-defined HID device**, so it runs on the drivers the
 operating system already ships. It does not pretend to be a keyboard or a mouse, which is why
 an application on the host can read the state of every pin as it is.
@@ -13,14 +13,20 @@ Supported boards:
 |---|---|---|
 | Raspberry Pi Pico | 26 (GPIO0–22, 26–28) | on-board LED (GPIO25): on, off briefly on activity |
 | Adafruit QT Py RP2040 | 13 (GPIO3–6, 20, 22–29) | NeoPixel (GPIO12): green, blue briefly on activity |
+| Raspberry Pi Pico 2 | 26 (GPIO0–22, 26–28) | on-board LED (GPIO25): on, off briefly on activity |
 
 The status LED lights as soon as the board is powered. "Activity" is an edge event on a monitored
 pin or an applied output report; the LED then changes for about 100 ms.
 
-> **Status**: the tests on a PC pass (33 for the firmware core, 60 for the host), and the
+On the first RP2350 stepping (A2), the internal pull-downs cannot hold an input low (erratum E9).
+The board reports this: `hidpin info` shows it, and the host tools warn when a pin is monitored
+with the pull-down. Use the pull-up, or an external pull-down of 8.2 kΩ or less with `nopull`.
+The default configuration uses pull-ups and is not affected.
+
+> **Status**: the tests on a PC pass (33 for the firmware core, 65 for the host), and the
 > software has been **verified on a real Adafruit QT Py RP2040** (2026-09-17): enumeration,
 > monitoring and edge events, debouncing, pin configuration, outputs, and the recovery after a
-> bus reset. The Raspberry Pi Pico has not been tried yet. The procedure is in
+> bus reset. The Raspberry Pi Pico and Pico 2 have not been tried yet. The procedure is in
 > [docs/TESTING.md](docs/TESTING.md).
 
 The documents in `docs/` are written in English, each with a Japanese translation next to it
@@ -47,7 +53,7 @@ You need CMake 3.20 or newer, Ninja and `arm-none-eabi-gcc`. The Pico SDK is tak
 `PICO_SDK_PATH` when it is set, and otherwise fetched (release 2.3.1) during configuration.
 
 ```
-cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico   # QT Py: adafruit_qtpy_rp2040
+cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico   # Pico 2: pico2, QT Py: adafruit_qtpy_rp2040
 cmake --build build/pico
 ```
 

@@ -116,6 +116,9 @@ void hp_device_info_encode(const hp_device_info_t *info, uint8_t *out)
     put_u32(out + 8, info->available);
     out[12] = HP_EVENTS_PER_REPORT;
     out[13] = HP_EVENT_QUEUE_SIZE;
+    out[14] = info->chip;
+    out[15] = info->chip_revision;
+    out[16] = info->quirks;
 }
 
 void hp_pin_config_encode(const hp_pin_config_report_t *report, uint8_t *out)

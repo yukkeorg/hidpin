@@ -290,18 +290,23 @@ func (a *app) cmdInfo(device *hidpin.Device) error {
 	}
 	if a.opts.json {
 		return a.printJSON(struct {
-			Serial             string `json:"serial"`
-			ProtocolVersion    uint8  `json:"protocol_version"`
-			Firmware           string `json:"firmware"`
-			Board              uint8  `json:"board"`
-			BoardName          string `json:"board_name"`
-			Available          uint32 `json:"available"`
-			AvailableGPIOs     []int  `json:"available_gpios"`
-			PeriodicIntervalMS uint16 `json:"periodic_interval_ms"`
-			EventsPerReport    uint8  `json:"events_per_report"`
-			EventQueueSize     uint8  `json:"event_queue_size"`
+			Serial             string   `json:"serial"`
+			ProtocolVersion    uint8    `json:"protocol_version"`
+			Firmware           string   `json:"firmware"`
+			Board              uint8    `json:"board"`
+			BoardName          string   `json:"board_name"`
+			Available          uint32   `json:"available"`
+			AvailableGPIOs     []int    `json:"available_gpios"`
+			PeriodicIntervalMS uint16   `json:"periodic_interval_ms"`
+			EventsPerReport    uint8    `json:"events_per_report"`
+			EventQueueSize     uint8    `json:"event_queue_size"`
+			Chip               uint8    `json:"chip"`
+			ChipName           string   `json:"chip_name"`
+			ChipRevision       uint8    `json:"chip_revision"`
+			Quirks             []string `json:"quirks"`
 		}{device.Serial, info.ProtocolVersion, info.FirmwareVersion(), uint8(info.Board), info.BoardName(),
-			info.Available, info.AvailableGPIOs(), info.PeriodicIntervalMS, info.EventsPerReport, info.EventQueueSize})
+			info.Available, info.AvailableGPIOs(), info.PeriodicIntervalMS, info.EventsPerReport, info.EventQueueSize,
+			uint8(info.Chip), info.Chip.Name(), info.ChipRevision, quirkNames(info.Quirks)})
 	}
 	fmt.Fprintf(a.stdout, "serial number     : %s\n", device.Serial)
 	fmt.Fprintf(a.stdout, "board             : %s\n", info.BoardName())
@@ -310,7 +315,42 @@ func (a *app) cmdInfo(device *hidpin.Device) error {
 	fmt.Fprintf(a.stdout, "available GPIOs   : %d pins %s\n", len(info.AvailableGPIOs()), formatInts(info.AvailableGPIOs()))
 	fmt.Fprintf(a.stdout, "periodic interval : %d ms\n", info.PeriodicIntervalMS)
 	fmt.Fprintf(a.stdout, "events per report : %d (queue of %d)\n", info.EventsPerReport, info.EventQueueSize)
+	chip := info.Chip.Name()
+	if info.Chip != 0 {
+		chip = fmt.Sprintf("%s (revision %d)", chip, info.ChipRevision)
+	}
+	fmt.Fprintf(a.stdout, "chip              : %s\n", chip)
+	if info.PullDownUnreliable() {
+		fmt.Fprintln(a.stdout, "known problems    : internal pull-downs are unreliable (RP2350 erratum E9)")
+	}
 	return nil
+}
+
+func quirkNames(q hidpin.Quirks) []string {
+	names := []string{}
+	if q.Has(hidpin.QuirkPullDownUnreliable) {
+		names = append(names, "PULL_DOWN_UNRELIABLE")
+	}
+	return names
+}
+
+// warnPullDowns warns when pins use the internal pull-down on a chip that cannot rely on it.
+func (a *app) warnPullDowns(info hidpin.DeviceInfo, config hidpin.PinConfig) {
+	gpios := config.PullDownGPIOs()
+	if !info.PullDownUnreliable() || len(gpios) == 0 {
+		return
+	}
+	names := make([]string, len(gpios))
+	for i, gpio := range gpios {
+		names[i] = fmt.Sprintf("GPIO%d", gpio)
+	}
+	verb := "use"
+	if len(gpios) == 1 {
+		verb = "uses"
+	}
+	fmt.Fprintf(a.stderr, "warning: %s %s the internal pull-down, which this chip cannot rely on (RP2350 erratum E9): "+
+		"an open input can stay HIGH. Use an external pull-down of 8.2 kOhm or less with nopull, or the pull-up\n",
+		strings.Join(names, ", "), verb)
 }
 
 func formatInts(values []int) string {
@@ -361,6 +401,9 @@ func (a *app) cmdConfigSet(device *hidpin.Device, specs []string) error {
 	report, err := device.UpdatePins(settings)
 	if err != nil {
 		return err
+	}
+	if info, err := device.Info(); err == nil {
+		a.warnPullDowns(info, report.Config)
 	}
 	gpios := make([]int, 0, len(settings))
 	for gpio := range settings {

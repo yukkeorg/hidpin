@@ -45,13 +45,16 @@ type vectorFile struct {
 		Payload string `json:"payload"`
 	} `json:"status"`
 	DeviceInfo []struct {
-		Name      string `json:"name"`
-		FwMajor   number `json:"fw_major"`
-		FwMinor   number `json:"fw_minor"`
-		FwPatch   number `json:"fw_patch"`
-		Board     number `json:"board"`
-		Available number `json:"available"`
-		Payload   string `json:"payload"`
+		Name         string `json:"name"`
+		FwMajor      number `json:"fw_major"`
+		FwMinor      number `json:"fw_minor"`
+		FwPatch      number `json:"fw_patch"`
+		Board        number `json:"board"`
+		Available    number `json:"available"`
+		Chip         number `json:"chip"`
+		ChipRevision number `json:"chip_revision"`
+		Quirks       number `json:"quirks"`
+		Payload      string `json:"payload"`
 	} `json:"device_info"`
 	PinConfig []struct {
 		Name       string   `json:"name"`
@@ -145,7 +148,7 @@ func TestEventStartTime(t *testing.T) {
 }
 
 func TestDeviceInfoVectors(t *testing.T) {
-	boards := []string{}
+	boards, chips, pullDowns := []string{}, []string{}, []bool{}
 	for _, c := range loadVectors(t).DeviceInfo {
 		payload := unhex(t, c.Payload)
 		info, err := DecodeDeviceInfo(payload)
@@ -154,16 +157,25 @@ func TestDeviceInfoVectors(t *testing.T) {
 		}
 		if info.ProtocolVersion != ProtocolVersion || info.Firmware != [3]uint8{uint8(c.FwMajor), uint8(c.FwMinor), uint8(c.FwPatch)} ||
 			info.Board != Board(c.Board) || info.Available != uint32(c.Available) || info.GPIOCount != GPIOCount ||
-			info.EventsPerReport != EventsPerReport {
+			info.EventsPerReport != EventsPerReport || info.Chip != Chip(c.Chip) || info.ChipRevision != uint8(c.ChipRevision) ||
+			info.Quirks != Quirks(c.Quirks) {
 			t.Errorf("%s: decoded %+v", c.Name, info)
 		}
 		if !bytes.Equal(info.Encode(), payload) {
 			t.Errorf("%s: re-encoding differs", c.Name)
 		}
 		boards = append(boards, info.BoardName())
+		chips = append(chips, info.Chip.Name())
+		pullDowns = append(pullDowns, info.PullDownUnreliable())
 	}
-	if !reflect.DeepEqual(boards, []string{"Raspberry Pi Pico", "Adafruit QT Py RP2040"}) {
+	if !reflect.DeepEqual(boards, []string{"Raspberry Pi Pico", "Adafruit QT Py RP2040", "Raspberry Pi Pico 2"}) {
 		t.Errorf("board names %v", boards)
+	}
+	if !reflect.DeepEqual(chips, []string{"not reported", "RP2040", "RP2350A"}) {
+		t.Errorf("chip names %v", chips)
+	}
+	if !reflect.DeepEqual(pullDowns, []bool{false, false, true}) {
+		t.Errorf("pull-down quirk %v", pullDowns)
 	}
 }
 
