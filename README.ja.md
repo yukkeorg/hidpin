@@ -52,6 +52,15 @@ BOOTSEL ボタンを押しながら USB をつなぎ、現れたドライブに 
 
 デバッグ用に USB シリアル（CDC）でログを出すビルドは `-DHIDPIN_DEBUG=ON` を付ける。
 
+状態 LED はボード自身のものを使う。別の GPIO に付けた LED を使うなら、構成するときに指定する。
+
+```
+-DHIDPIN_STATUS_LED_PIN=15                               # 普通の LED（HIGH で点灯）
+-DHIDPIN_STATUS_LED_PIN=16 -DHIDPIN_STATUS_LED_TYPE=ws2812  # WS2812（NeoPixel）
+```
+
+指定した GPIO は利用可能GPIOから外れ、監視にも出力にも使えなくなる。
+
 ### 2. ホスト側を用意する（Linux）
 
 ```

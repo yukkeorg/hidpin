@@ -188,6 +188,9 @@ Interrupt IN で送る**状態通知**では、少なくとも 1 ビットが立
 | 2 | Adafruit QT Py RP2040 | `0x3FD00078`（GPIO3–6, 20, 22–29） |
 | 3 | Raspberry Pi Pico 2 | `0x1C7FFFFF`（GPIO0–22, 26–28） |
 
+これは標準のビルドでの値である。状態 LED を別の GPIO に付けてビルドしたファームウェア（`HIDPIN_STATUS_LED_PIN`）は、
+その GPIO を `available` から外す。そのため**ホスト**は、`board` ではなく `available` を頼りにする。
+
 ### 5.2 `chip` と `chip_revision`
 
 | `chip` | マイコン | `chip_revision` |

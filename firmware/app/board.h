@@ -19,6 +19,13 @@
 #error "Unsupported board: build with PICO_BOARD=pico, pico2 or adafruit_qtpy_rp2040"
 #endif
 
+// A status LED moved with HIDPIN_STATUS_LED_PIN takes its GPIO away from monitoring and output.
+#if defined(HIDPIN_STATUS_LED_PIN)
+#define HIDPIN_AVAILABLE (HIDPIN_BOARD_AVAILABLE & ~(1u << HIDPIN_STATUS_LED_PIN))
+#else
+#define HIDPIN_AVAILABLE HIDPIN_BOARD_AVAILABLE
+#endif
+
 // Fills in the chip, its revision and its known problems.
 static inline void board_identify_chip(hp_device_info_t *info)
 {

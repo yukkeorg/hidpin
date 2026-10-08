@@ -63,6 +63,15 @@ appears.
 Add `-DHIDPIN_DEBUG=ON` for a build that also exposes a USB serial (CDC) interface carrying
 debug logs.
 
+The status LED is the board's own unless you choose another GPIO when configuring:
+
+```
+-DHIDPIN_STATUS_LED_PIN=15                               # a plain LED, lit when HIGH
+-DHIDPIN_STATUS_LED_PIN=16 -DHIDPIN_STATUS_LED_TYPE=ws2812  # a WS2812 (NeoPixel)
+```
+
+That GPIO is then left out of the available GPIOs, so it can no longer be monitored or driven.
+
 ### 2. Set up the host (Linux)
 
 ```

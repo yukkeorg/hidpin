@@ -98,7 +98,7 @@ int main(void)
         .fw_minor = HIDPIN_FW_MINOR,
         .fw_patch = HIDPIN_FW_PATCH,
         .board = HIDPIN_BOARD_ID,
-        .available = HIDPIN_BOARD_AVAILABLE,
+        .available = HIDPIN_AVAILABLE,
     };
     board_identify_chip(&info);
     hp_engine_init(&engine, &hw, &info, time_us_64());

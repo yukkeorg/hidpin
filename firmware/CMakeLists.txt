@@ -33,6 +33,31 @@ else()
     message(STATUS "hidpin: USB ${HIDPIN_USB_VID}:${HIDPIN_USB_PID}")
 endif()
 
+# Status LED. Empty: the board's own LED (the on-board LED of the Pico and the Pico 2, the NeoPixel of
+# the QT Py). A GPIO number moves it there; that GPIO is then left out of the available GPIOs.
+set(HIDPIN_STATUS_LED_PIN "" CACHE STRING "GPIO of the status LED (empty: the board's own LED)")
+set(HIDPIN_STATUS_LED_TYPE "gpio" CACHE STRING "LED on HIDPIN_STATUS_LED_PIN: gpio (lit when HIGH) or ws2812")
+set_property(CACHE HIDPIN_STATUS_LED_TYPE PROPERTY STRINGS gpio ws2812)
+if(HIDPIN_STATUS_LED_PIN STREQUAL "")
+    message(STATUS "hidpin: status LED is the board's own")
+else()
+    if(NOT HIDPIN_STATUS_LED_PIN MATCHES "^[0-9]+$" OR HIDPIN_STATUS_LED_PIN GREATER 29)
+        message(FATAL_ERROR "HIDPIN_STATUS_LED_PIN must be a GPIO number from 0 to 29, got '${HIDPIN_STATUS_LED_PIN}'")
+    endif()
+    if(NOT HIDPIN_STATUS_LED_TYPE MATCHES "^(gpio|ws2812)$")
+        message(FATAL_ERROR "HIDPIN_STATUS_LED_TYPE must be gpio or ws2812, got '${HIDPIN_STATUS_LED_TYPE}'")
+    endif()
+    message(STATUS "hidpin: status LED on GPIO${HIDPIN_STATUS_LED_PIN} (${HIDPIN_STATUS_LED_TYPE})")
+endif()
+if(HIDPIN_STATUS_LED_PIN STREQUAL "")
+    # Of the supported boards, only the QT Py has a WS2812 of its own.
+    if(PICO_BOARD STREQUAL "adafruit_qtpy_rp2040")
+        set(HIDPIN_NEEDS_WS2812 ON)
+    endif()
+elseif(HIDPIN_STATUS_LED_TYPE STREQUAL "ws2812")
+    set(HIDPIN_NEEDS_WS2812 ON)
+endif()
+
 pico_sdk_init()
 
 add_subdirectory(core)
@@ -57,6 +82,12 @@ target_compile_definitions(hidpin PRIVATE
     HIDPIN_FW_PATCH=${PROJECT_VERSION_PATCH}
     HIDPIN_DEBUG=$<BOOL:${HIDPIN_DEBUG}>
 )
+if(NOT HIDPIN_STATUS_LED_PIN STREQUAL "")
+    target_compile_definitions(hidpin PRIVATE
+        HIDPIN_STATUS_LED_PIN=${HIDPIN_STATUS_LED_PIN}
+        HIDPIN_STATUS_LED_WS2812=$<STREQUAL:${HIDPIN_STATUS_LED_TYPE},ws2812>
+    )
+endif()
 target_link_libraries(hidpin PRIVATE
     hidpin_core
     hardware_pio
@@ -65,7 +96,7 @@ target_link_libraries(hidpin PRIVATE
     tinyusb_device
 )
 
-if(PICO_BOARD STREQUAL "adafruit_qtpy_rp2040")
+if(HIDPIN_NEEDS_WS2812)
     pico_generate_pio_header(hidpin ${CMAKE_CURRENT_LIST_DIR}/app/ws2812.pio)
 endif()
 

@@ -188,6 +188,10 @@ The time the change started is `timestamp_us - age_us` (unless saturated).
 | 2 | Adafruit QT Py RP2040 | `0x3FD00078` (GPIO3–6, 20, 22–29) |
 | 3 | Raspberry Pi Pico 2 | `0x1C7FFFFF` (GPIO0–22, 26–28) |
 
+These are the values of a standard build. A firmware built with its status LED on another GPIO
+(`HIDPIN_STATUS_LED_PIN`) leaves that GPIO out of `available`, so the **host** relies on `available`
+rather than on `board`.
+
 ### 5.2 `chip` and `chip_revision`
 
 | `chip` | Microcontroller | `chip_revision` |
