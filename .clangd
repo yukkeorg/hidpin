@@ -1,0 +1,22 @@
+CompileFlags:
+    CompilationDatabase: build/qtpy
+
+---
+If:
+    PathMatch: firmware/test/.*
+CompileFlags:
+    CompilationDatabase: build/core-tests
+
+---
+# clangd does not know where arm-none-eabi-gcc keeps its C library headers, so name them here.
+# (Not needed for firmware/test, which builds with the host compiler.)
+If:
+    PathExclude: firmware/test/.*
+CompileFlags:
+    Add: [-isystem/usr/lib/arm-none-eabi/include]
+
+---
+# pico/stdlib.h and tusb.h exist to pull in other headers, so Include Cleaner finds no symbol
+# used from them directly. Removing them, as its fix suggests, would break the build.
+Diagnostics:
+    UnusedIncludes: None
