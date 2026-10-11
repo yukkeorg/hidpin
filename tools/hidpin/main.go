@@ -1,6 +1,5 @@
-// Command hidpin watches and configures hidpin devices. It is the Go counterpart of the Python
-// CLI in python/ and takes the same commands and options; unlike it, watch keeps going when the
-// device is unplugged and plugged in again:
+// Command hidpin watches and configures hidpin devices; it is the official hidpin command. watch
+// keeps going when the device is unplugged and plugged in again:
 //
 //	hidpin [--json] list
 //	hidpin [--json] info [--serial S]

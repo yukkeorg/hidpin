@@ -1,7 +1,7 @@
 # hidpin for Go
 
-A Go host library and CLI for hidpin devices, the Go counterpart of the Python code in
-[`../python`](../python). It speaks the protocol in [docs/PROTOCOL.md](../docs/PROTOCOL.md) and is
+A Go host library for hidpin devices, following the API that every host library provides
+([docs/HOST_API.md](../docs/HOST_API.md)). It speaks the protocol in [docs/PROTOCOL.md](../docs/PROTOCOL.md) and is
 tested against the same [`protocol/vectors.json`](../protocol/vectors.json).
 
 - **Linux only.** It talks to `/dev/hidraw*` directly: pure Go, no cgo, no hidapi, no other
@@ -13,40 +13,12 @@ tested against the same [`protocol/vectors.json`](../protocol/vectors.json).
 |---|---|
 | `hidpin` | the host library: reports, device access, pin configuration, polarity, and `Watch` for long-running programs |
 | `hidpin/hidpintest` | a fake device and a simulated bus of boards, to test code that uses the library without hardware |
-| `cmd/hidpin` | the `hidpin` command (at the repository root) |
+| `tools/hidpin` | the `hidpin` command (at the repository root) |
 | `hidpin/internal/hidraw` | the Linux hidraw backend (sysfs enumeration, HIDIOC* ioctls) |
 
 ## The command
 
-```
-go install github.com/yukkeorg/hidpin/cmd/hidpin@latest
-```
-
-or, from the root of a checkout (plain `go build ./cmd/hidpin` clashes with the `hidpin/` directory):
-
-```
-go install ./cmd/hidpin            # into $GOPATH/bin
-go build -o bin/hidpin ./cmd/hidpin
-```
-
-It takes the same commands and options as the Python CLI:
-
-```
-hidpin list
-hidpin info
-hidpin watch [--active-low 5,6] [--active-high 7] [--all]
-hidpin config get
-hidpin config set 5=pullup:20 6=off 7=out:low
-hidpin output 7=high
-```
-
-`--json` prints machine-readable output and `--serial` picks one of several boards. Unlike the
-Python CLI, options may come anywhere on the line. Like it, `watch` keeps going when the board is
-unplugged and plugged in again (it still fails at once when no board is connected). JSON is printed
-without spaces between items; with `--json`, messages about the connection go to stderr.
-
-Non-root access needs the udev rule (`sudo cp udev/60-hidpin.rules /etc/udev/rules.d/`, then
-replug the board). A firmware built with other USB ids is found with `HIDPIN_VID` / `HIDPIN_PID`.
+The `hidpin` command, built on this library, lives in [`tools/hidpin`](../tools/hidpin/README.md).
 
 ## The library
 
