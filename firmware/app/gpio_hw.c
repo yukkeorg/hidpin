@@ -107,6 +107,7 @@ bool gpio_hw_pop_edge(raw_edge_t *edge)
         return false;
     }
     *edge = edge_buffer[tail];
+    __compiler_memory_barrier();
     edge_tail = (uint16_t)((tail + 1u) & (EDGE_BUFFER_SIZE - 1u));
     return true;
 }
