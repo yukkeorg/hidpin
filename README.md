@@ -91,29 +91,14 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 **Replug the board** afterwards; the permissions of an already-created device node do not change.
 
-To get the command itself, use any of:
+The `hidpin` command is written in Go (Go 1.22 or newer, Linux only). Install it with:
 
 ```
-uv tool install ./python      # hidpin available everywhere
-pipx install ./python         # the same
-pip install ./python          # into the current Python environment
+go install github.com/yukkeorg/hidpin/tools/hidpin@latest   # into $GOPATH/bin
+go build -o bin/hidpin ./tools/hidpin                       # or from a checkout, into bin/
 ```
 
-To try it without installing, run `cd python && uv run hidpin list`.
-
-A Go version of the same command and a Go host library live in [`hidpin/`](hidpin/README.md)
-(`go install github.com/yukkeorg/hidpin/cmd/hidpin@latest`, `import "github.com/yukkeorg/hidpin/hidpin"`,
-Linux only). A Rust host library lives in [`rust/`](rust/README.md) (crate `hidpin`, Linux only, no
-command).
-
-On Linux the library talks to `/dev/hidraw*` directly, so no extra library is needed. Windows
-and macOS need hidapi (`pip install './python[hidapi]'`). `HIDPIN_BACKEND=hidraw` or
-`HIDPIN_BACKEND=hidapi` picks one explicitly. The hidapi wheels on PyPI are built with the
-libusb backend, which fails with `OSError: open failed` when it cannot take the interface from
-the kernel driver — hence hidraw being the default on Linux.
-
-Python 3.11 or newer. Tested on Linux (hidraw); Windows and macOS should work through hidapi,
-but have not been tried.
+It talks to `/dev/hidraw*` directly and needs no other library.
 
 ### 4. Use the command
 
@@ -135,6 +120,23 @@ so the host reads "LOW = ON" by default. Change it per pin with, for example,
 `hidpin watch --active-high 7`.
 
 ### 5. Use it as a library
+
+Host libraries exist for Python ([`python/`](python)), Go ([`hidpin/`](hidpin/README.md),
+`import "github.com/yukkeorg/hidpin/hidpin"`) and Rust ([`rust/`](rust/README.md), crate `hidpin`).
+They offer the same API ([docs/HOST_API.md](docs/HOST_API.md)); the examples here are in Python.
+
+```
+pip install ./python          # or: uv add ./python, from your project
+```
+
+On Linux the Python library talks to `/dev/hidraw*` directly, so no extra library is needed. Windows
+and macOS need hidapi (`pip install './python[hidapi]'`). `HIDPIN_BACKEND=hidraw` or
+`HIDPIN_BACKEND=hidapi` picks one explicitly. The hidapi wheels on PyPI are built with the
+libusb backend, which fails with `OSError: open failed` when it cannot take the interface from
+the kernel driver — hence hidraw being the default on Linux.
+
+Python 3.11 or newer. Tested on Linux (hidraw); Windows and macOS should work through hidapi,
+but have not been tried.
 
 ```python
 from hidpin import Device, PinMode, PinSetting
@@ -166,7 +168,7 @@ with watch(target_pins=target) as watcher:          # watch("SERIAL", ...) picks
             print(event.gpio, "ON" if event.on else "OFF", event.time)
 ```
 
-The API of both host libraries, and the specification for one in another language, is in
+The API of the host libraries, and the specification for one in another language, is in
 [docs/HOST_API.md](docs/HOST_API.md).
 
 ## Repository layout
@@ -182,9 +184,9 @@ protocol/vectors.json test data both the C and the Python tests read
 firmware/core/        the core, free of SDK dependencies (reports, debouncing, events, engine)
 firmware/app/         the firmware built on the Pico SDK and TinyUSB
 firmware/test/        unit tests for the core, run on a PC
-python/               the Python host library and CLI (package hidpin)
+python/               the Python host library (package hidpin)
 hidpin/               the Go host library (package hidpin; Linux, no cgo), see hidpin/README.md
-cmd/hidpin/           the Go CLI
+tools/hidpin/         the hidpin command (Go)
 rust/                 the Rust host library (crate hidpin; Linux), see rust/README.md
 go.mod                the Go module github.com/yukkeorg/hidpin
 udev/                 the Linux udev rule

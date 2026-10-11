@@ -266,7 +266,7 @@ if info.PullDownUnreliable() {
 | `monitor(mode, debounce_ms)` | 入力のモードと**チャタリング除去時間**。入力でないモードはエラー | `PinSetting.monitor(mode, debounce_ms)` | `MonitorNoPull`、`MonitorPullUp`、`MonitorPullDown` |
 | `output(initial_high)` | `OUTPUT`、1 または 0 | `PinSetting.output(level)` | `Output(initialHigh)` |
 
-`PinSetting` は `is_monitored` と `is_output`、および CLI が使う文字列表現（`off`、`nopull:N`、`pullup:N`、
+`PinSetting` は `is_monitored` と `is_output`、および `hidpin` コマンドが使う文字列表現（`off`、`nopull:N`、`pullup:N`、
 `pulldown:N`、`out:low`、`out:high`）も持つ。
 
 `PinConfig` はちょうど `GPIO_COUNT` 個の設定を持ち、GPIO 番号で引く。
@@ -978,4 +978,4 @@ defer device.Close()
 ## 11. 既存ライブラリの状況
 
 3 つのライブラリはいずれもこの文書に従い、両方の層を提供する。Watch の層は、Python 版が待ち受ける形と asyncio の形の両方、Go 版がチャネル、Rust 版が専用のスレッドから受け取る形で提供する。
-Python 版と Go 版には `hidpin` コマンドも付属する。Rust 版にはない。
+`hidpin` コマンドは Go で書かれている（[`tools/hidpin`](../tools/hidpin/README.md)）。

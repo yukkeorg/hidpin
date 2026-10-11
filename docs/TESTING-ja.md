@@ -2,7 +2,7 @@
 
 [English](TESTING.md) | **日本語**
 
-PC 上のユニットテスト（`firmware/test`、`python/tests`、`hidpin/` の Go のテスト）では確かめられない部分を、実機で確認する手順。
+PC 上のユニットテスト（`firmware/test`、`python/tests`、`hidpin/` と `tools/hidpin/` の Go のテスト、`rust/` の Rust のテスト）では確かめられない部分を、実機で確認する手順。
 用語は [CONTEXT.md](../CONTEXT.md)、レポートの内容は [PROTOCOL-ja.md](./PROTOCOL-ja.md) を参照。
 
 ## 用意するもの
@@ -16,12 +16,11 @@ PC 上のユニットテスト（`firmware/test`、`python/tests`、`hidpin/` �
   ```
   sudo cp udev/60-hidpin.rules /etc/udev/rules.d/
   sudo udevadm control --reload-rules && sudo udevadm trigger
-  uv tool install ./python      # インストールせずに試すなら cd python && uv run hidpin ...
+  go install ./tools/hidpin     # hidpin コマンド。チェックアウトした場所の直下で実行する
   ```
 
   ルールを入れた後にボードを挿し直す。挿したままだと権限が変わらず、
-  `OSError: open failed` のままになる。Linux では hidraw を直接使うので、
-  hidapi のインストールは不要。
+  開くときの「permission denied」のエラーが続く。コマンドは hidraw を直接使うので、ほかのライブラリは不要。
 
 配線は 3.3V 系。**RP2040 は 5V トレラントではない**ので、外部機器の信号を直接つながない。
 

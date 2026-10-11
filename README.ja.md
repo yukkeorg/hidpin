@@ -83,27 +83,14 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 ルールを入れたら、**ボードを挿し直してください**。挿したままでは権限が変わりません。
 
-コマンドとして使う場合は、次のどれかでインストールします。
+`hidpin` コマンドは Go で書かれています（Go 1.22 以上、Linux 専用）。次のどちらかでインストールします。
 
 ```
-uv tool install ./python      # hidpin コマンドがどこからでも使える
-pipx install ./python         # 同上
-pip install ./python          # 今の Python 環境に入れる
+go install github.com/yukkeorg/hidpin/tools/hidpin@latest   # $GOPATH/bin に入れる
+go build -o bin/hidpin ./tools/hidpin                       # チェックアウトした場所で bin/ に作る
 ```
 
-インストールせずに試す場合は、`cd python && uv run hidpin list` のように実行します。
-
-同じコマンドの Go 版と、Go 用のホストライブラリが [`hidpin/`](hidpin/README.md) にあります
-（`go install github.com/yukkeorg/hidpin/cmd/hidpin@latest`、`import "github.com/yukkeorg/hidpin/hidpin"`、
-Linux 専用）。Rust 用のホストライブラリは [`rust/`](rust/README.md) にあります（クレート `hidpin`、Linux 専用、コマンドはありません）。
-
-Linux では `/dev/hidraw*` を直接使うので、追加のライブラリは要りません。
-Windows と macOS では hidapi が必要です（`pip install './python[hidapi]'`）。
-`HIDPIN_BACKEND=hidraw` または `HIDPIN_BACKEND=hidapi` で明示的に選ぶこともできます。
-hidapi の PyPI ホイールは libusb 版で、カーネルドライバを奪えないと
-`OSError: open failed` になることがあるため、Linux では hidraw を既定にしています。
-
-Python 3.11 以上が必要です。動作確認は Linux（hidraw）で行っています。Windows と macOS は hidapi 経由で動く見込みですが、まだ確認していません。
+`/dev/hidraw*` を直接使うので、ほかのライブラリは要りません。
 
 ### 4. コマンドを使う
 
@@ -124,6 +111,22 @@ hidpin output 7=high                    # 出力の値を変える
 「LOW = ON」と解釈します。`hidpin watch --active-high 7` のように、ピンごとに変更できます。
 
 ### 5. ライブラリとして使う
+
+ホストライブラリは Python 版（[`python/`](python)）、Go 版（[`hidpin/`](hidpin/README.md)、`import "github.com/yukkeorg/hidpin/hidpin"`）、
+Rust 版（[`rust/`](rust/README.md)、クレート `hidpin`）があります。
+どれも同じ API（[docs/HOST_API-ja.md](docs/HOST_API-ja.md)）を提供します。ここでは Python で例を示します。
+
+```
+pip install ./python          # または、使うプロジェクトで uv add ./python
+```
+
+Python 版は Linux では `/dev/hidraw*` を直接使うので、追加のライブラリは要りません。
+Windows と macOS では hidapi が必要です（`pip install './python[hidapi]'`）。
+`HIDPIN_BACKEND=hidraw` または `HIDPIN_BACKEND=hidapi` で明示的に選ぶこともできます。
+hidapi の PyPI ホイールは libusb 版で、カーネルドライバを奪えないと
+`OSError: open failed` になることがあるため、Linux では hidraw を既定にしています。
+
+Python 3.11 以上が必要です。動作確認は Linux（hidraw）で行っています。Windows と macOS は hidapi 経由で動く見込みですが、まだ確認していません。
 
 ```python
 from hidpin import Device, PinMode, PinSetting
@@ -155,7 +158,7 @@ with watch(target_pins=target) as watcher:          # 複数台あるときは w
             print(event.gpio, "ON" if event.on else "OFF", event.time)
 ```
 
-両方のホストライブラリの API と、ほかの言語で作るときの仕様は [docs/HOST_API-ja.md](docs/HOST_API-ja.md) にあります。
+ホストライブラリの API と、ほかの言語で作るときの仕様は [docs/HOST_API-ja.md](docs/HOST_API-ja.md) にあります。
 
 ## リポジトリの構成
 
@@ -170,9 +173,9 @@ protocol/vectors.json C と Python の両方のテストが参照するテスト
 firmware/core/        SDK に依存しないコア（レポート、チャタリング除去、イベント、エンジン）
 firmware/app/         Pico SDK + TinyUSB のファームウェア
 firmware/test/        コアのユニットテスト（PC 上で実行）
-python/               Python のホストライブラリと CLI（パッケージ hidpin）
+python/               Python のホストライブラリ（パッケージ hidpin）
 hidpin/               Go のホストライブラリ（パッケージ hidpin、Linux 専用、cgo 不要）。hidpin/README.md を参照
-cmd/hidpin/           Go 版の CLI
+tools/hidpin/         hidpin コマンド（Go）
 rust/                 Rust のホストライブラリ（クレート hidpin、Linux 専用）。rust/README.md を参照
 go.mod                Go のモジュール github.com/yukkeorg/hidpin
 udev/                 Linux の udev ルール

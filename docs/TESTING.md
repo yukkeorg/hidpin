@@ -2,7 +2,7 @@
 
 **English** | [日本語](TESTING-ja.md)
 
-How to check on real hardware what the unit tests on a PC (`firmware/test`, `python/tests`, and the Go tests in `hidpin/`) cannot.
+How to check on real hardware what the unit tests on a PC (`firmware/test`, `python/tests`, the Go tests in `hidpin/` and `tools/hidpin/`, and the Rust tests in `rust/`) cannot.
 Terms follow [CONTEXT.md](../CONTEXT.md) (written in Japanese), and the report contents are in [PROTOCOL.md](./PROTOCOL.md).
 
 ## What you need
@@ -16,12 +16,12 @@ Terms follow [CONTEXT.md](../CONTEXT.md) (written in Japanese), and the report c
   ```
   sudo cp udev/60-hidpin.rules /etc/udev/rules.d/
   sudo udevadm control --reload-rules && sudo udevadm trigger
-  uv tool install ./python      # to try without installing: cd python && uv run hidpin ...
+  go install ./tools/hidpin     # the hidpin command, from the root of the checkout
   ```
 
   Replug the board after installing the rule. While it stays plugged in, its permissions do not change and
-  `OSError: open failed` persists. On Linux hidraw is used directly, so hidapi does not need to be
-  installed.
+  opening it keeps failing with "permission denied". The command uses hidraw directly and needs no other
+  library.
 
 The wiring is 3.3 V. **The RP2040 is not 5 V tolerant**, so do not connect signals from other equipment directly.
 

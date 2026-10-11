@@ -272,7 +272,7 @@ if info.PullDownUnreliable() {
 | `monitor(mode, debounce_ms)` | an input mode with its **debounce time**; a non-input mode is an error | `PinSetting.monitor(mode, debounce_ms)` | `MonitorNoPull`, `MonitorPullUp`, `MonitorPullDown` |
 | `output(initial_high)` | `OUTPUT`, 1 or 0 | `PinSetting.output(level)` | `Output(initialHigh)` |
 
-`PinSetting` also offers `is_monitored` and `is_output`, and a text form used by the CLIs: `off`,
+`PinSetting` also offers `is_monitored` and `is_output`, and a text form used by the `hidpin` command: `off`,
 `nopull:N`, `pullup:N`, `pulldown:N`, `out:low`, `out:high`.
 
 `PinConfig` holds exactly `GPIO_COUNT` settings, indexed by GPIO number.
@@ -1020,4 +1020,4 @@ defer device.Close()
 
 The three libraries follow this document and provide both layers. Python offers the Watch layer in a
 blocking and an asyncio form, Go as a channel, and Rust as a blocking receiver on a thread of its own.
-Python and Go also come with the `hidpin` command; Rust has none.
+The `hidpin` command is written in Go ([`tools/hidpin`](../tools/hidpin/README.md)).
