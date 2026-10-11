@@ -7,6 +7,7 @@ import random
 import warnings
 from dataclasses import dataclass
 from types import TracebackType
+from typing import Any, Protocol
 
 from hidpin import _hidraw, protocol
 from hidpin.protocol import (
@@ -54,6 +55,10 @@ class DeviceNotFound(HidpinError):
     pass
 
 
+class SeveralDevices(HidpinError):
+    """No serial number was given, but several devices are connected."""
+
+
 class ProtocolVersionError(HidpinError):
     def __init__(self, device_version: int) -> None:
         super().__init__(
@@ -64,7 +69,7 @@ class ProtocolVersionError(HidpinError):
 
 class PinConfigRejected(HidpinError):
     def __init__(self, result: Result | int, gpio: int, *, local: bool = False) -> None:
-        message = protocol.RESULT_MESSAGES.get(result, f"result {int(result)}")
+        message = protocol.result_message(result)
         if gpio != protocol.RESULT_GPIO_NONE:
             message = f"{message} (GPIO{gpio})"
         where = (
@@ -142,8 +147,10 @@ def _default_backend():
 
 def _is_hidpin(item: dict) -> bool:
     usage_page = item.get("usage_page") or 0
-    # Some backends report 0 when they cannot parse the report descriptor.
-    return usage_page in (0, USAGE_PAGE)
+    if usage_page == 0:
+        # The backend could not tell the usage; opening checks the protocol version instead.
+        return True
+    return usage_page == USAGE_PAGE and (item.get("usage") or 0) == USAGE
 
 
 def find_devices(backend=None) -> list[DeviceEntry]:
@@ -162,7 +169,63 @@ def find_devices(backend=None) -> list[DeviceEntry]:
                 product=item.get("product_string") or "",
             )
         )
-    return sorted(entries, key=lambda entry: entry.serial)
+    return sorted(entries, key=lambda entry: (entry.serial, entry.path))
+
+
+def choose_device(entries: list[DeviceEntry], serial: str | None = None) -> DeviceEntry:
+    """Picks the entry with the given serial number, or the only entry when serial is None.
+
+    Raises DeviceNotFound when nothing matches, and SeveralDevices when serial is None but there are
+    several entries.
+    """
+    matching = [entry for entry in entries if serial is None or entry.serial == serial]
+    if not matching:
+        raise DeviceNotFound(
+            "no hidpin device found" if serial is None else f"no hidpin device with serial number {serial}"
+        )
+    if len(matching) > 1 and serial is None:
+        found = ", ".join(entry.serial for entry in matching)
+        raise SeveralDevices(f"several devices are connected; pick one with --serial: {found}")
+    return matching[0]
+
+
+def _open_handle(hid, path: bytes):
+    handle = hid.device()
+    try:
+        handle.open_path(path)
+    except OSError as exc:
+        raise HidpinError(
+            f"cannot open the device ({exc}). If this is a permissions problem, install the "
+            "udev rule and replug the board: sudo cp udev/60-hidpin.rules /etc/udev/rules.d/ "
+            "&& sudo udevadm control --reload-rules && sudo udevadm trigger"
+        ) from exc
+    return handle
+
+
+class Bus(Protocol):
+    """Finds and opens hidpin devices: SystemBus uses the operating system, and
+    hidpin.testing.FakeBus simulates boards being plugged in and out."""
+
+    def devices(self) -> list[DeviceEntry]:
+        """Lists the connected hidpin devices."""
+        ...
+
+    def open(self, entry: DeviceEntry) -> Any:
+        """Opens one of the listed devices and returns a handle with the methods of hid.device."""
+        ...
+
+
+class SystemBus:
+    """The bus of the operating system, through the backend find_devices() uses."""
+
+    def __init__(self, backend=None) -> None:
+        self._hid = backend or _default_backend()
+
+    def devices(self) -> list[DeviceEntry]:
+        return find_devices(backend=self._hid)
+
+    def open(self, entry: DeviceEntry) -> Any:
+        return _open_handle(self._hid, entry.path)
 
 
 class Device:
@@ -185,31 +248,15 @@ class Device:
     def open(cls, serial: str | None = None, *, path: bytes | None = None, backend=None) -> "Device":
         hid = backend or _default_backend()
         if path is None:
-            entries = find_devices(backend=hid)
-            if serial is not None:
-                entries = [entry for entry in entries if entry.serial == serial]
-            if not entries:
-                raise DeviceNotFound(
-                    "no hidpin device found"
-                    if serial is None
-                    else f"no hidpin device with serial number {serial}"
-                )
-            if len(entries) > 1 and serial is None:
-                found = ", ".join(entry.serial for entry in entries)
-                raise DeviceNotFound(f"several devices are connected; pick one with --serial: {found}")
-            path = entries[0].path
-            serial = entries[0].serial
-        handle = hid.device()
-        try:
-            handle.open_path(path)
-        except OSError as exc:
-            raise HidpinError(
-                f"cannot open the device ({exc}). If this is a permissions problem, install the "
-                "udev rule and replug the board: sudo cp udev/60-hidpin.rules /etc/udev/rules.d/ "
-                "&& sudo udevadm control --reload-rules && sudo udevadm trigger"
-            ) from exc
+            entry = choose_device(find_devices(backend=hid), serial)
+            path, serial = entry.path, entry.serial
+        handle = _open_handle(hid, path)
         device = cls(handle, serial=serial or "")
-        device.info  # verifies the protocol version before anything else
+        try:
+            device.info  # verifies the protocol version before anything else
+        except BaseException:
+            handle.close()
+            raise
         return device
 
     def close(self) -> None:
@@ -325,6 +372,8 @@ class Device:
         mask = 0
         value = 0
         for gpio, level in levels.items():
+            if not 0 <= gpio < protocol.GPIO_COUNT:
+                raise HidpinError(f"GPIO{gpio} is out of range (0-{protocol.GPIO_COUNT - 1})")
             mask |= 1 << gpio
             if level:
                 value |= 1 << gpio

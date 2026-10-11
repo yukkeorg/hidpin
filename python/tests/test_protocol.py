@@ -79,6 +79,11 @@ def test_device_info_board_names(vectors):
 
 
 
+
+def test_result_message():
+    assert protocol.result_message(protocol.Result.UNAVAILABLE_GPIO) == "the pin is not an available GPIO"
+    assert protocol.result_message(9) == "result 9"
+
 def test_board_name_without_a_preset():
     assert protocol.board_name(0) == "other board"
     assert protocol.board_name(9) == "unknown board 9"
@@ -166,3 +171,70 @@ def test_pin_setting_text():
         protocol.PinSetting.monitor().initial_level
     with pytest.raises(ValueError):
         protocol.PinSetting.monitor(protocol.PinMode.OUTPUT)
+
+
+def test_decode_status_rejects_more_than_seven_events():
+    payload = bytearray(protocol.REPORT_PAYLOAD_LEN)
+    payload[4] = protocol.EVENTS_PER_REPORT + 1
+    with pytest.raises(ValueError, match="event_count 8 exceeds 7"):
+        protocol.decode_status(bytes(payload))
+
+
+def test_encode_status_rejects_more_than_seven_events():
+    event = protocol.EdgeEvent(gpio=5, level=True, age_us=0)
+    report = protocol.StatusReport(0, protocol.Reason.PERIODIC, protocol.StatusFlags(0), 0, 0, 0, 0, (event,) * 8)
+    with pytest.raises(ValueError):
+        protocol.encode_status(report)
+
+
+def test_status_report_bit_accessors():
+    report = protocol.StatusReport(
+        0, protocol.Reason.PERIODIC, protocol.StatusFlags(0), monitored=1 << 5, outputs=1 << 7, levels=1 << 7, timestamp_us=0
+    )
+    assert (report.is_monitored(5), report.is_output(5), report.level(5)) == (True, False, False)
+    assert (report.is_monitored(7), report.is_output(7), report.level(7)) == (False, True, True)
+
+
+def test_unknown_values_are_kept():
+    payload = bytearray(protocol.encode_pin_config(protocol.decode_pin_config(bytes(protocol.REPORT_PAYLOAD_LEN))))
+    payload[0] = 9  # a result this library does not know
+    assert protocol.decode_pin_config(bytes(payload)).result == 9
+    assert protocol.chip_name(7) == "unknown chip 7"
+    assert protocol.chip_name(0) == "not reported"
+
+
+def test_pin_config_needs_every_gpio():
+    with pytest.raises(ValueError, match="needs 30 entries, got 29"):
+        protocol.PinConfig((protocol.PinSetting.unused(),) * 29)
+
+
+@pytest.mark.parametrize("gpio", [-1, 30])
+def test_with_pin_rejects_gpios_out_of_range(gpio):
+    with pytest.raises(ValueError, match=f"GPIO{gpio} is out of range"):
+        protocol.PinConfig.unused().with_pin(gpio, protocol.PinSetting.unused())
+
+
+def test_with_pins_keeps_the_original():
+    original = protocol.PinConfig.unused()
+    changed = original.with_pins({0: protocol.PinSetting.output(True), 29: protocol.PinSetting.monitor()})
+    assert original == protocol.PinConfig.unused()
+    assert (changed[0], changed[29]) == (protocol.PinSetting.output(True), protocol.PinSetting.monitor())
+    assert changed.outputs_mask == 1 and changed.monitored_mask == 1 << 29
+
+
+def test_pin_setting_constructors_and_accessors():
+    assert protocol.PinSetting.monitor(protocol.PinMode.PULLDOWN, 255).debounce_ms == 255
+    assert protocol.PinSetting.output(True).initial_level is True
+    with pytest.raises(ValueError, match="not an input mode"):
+        protocol.PinSetting.monitor(protocol.PinMode.OUTPUT)
+    with pytest.raises(ValueError):
+        _ = protocol.PinSetting.output(False).debounce_ms
+    with pytest.raises(ValueError):
+        _ = protocol.PinSetting.monitor().initial_level
+
+
+def test_pull_down_gpios_are_in_order():
+    config = protocol.PinConfig.unused().with_pins(
+        {9: protocol.PinSetting.monitor(protocol.PinMode.PULLDOWN), 2: protocol.PinSetting.monitor(protocol.PinMode.PULLDOWN)}
+    )
+    assert config.pull_down_gpios == [2, 9]

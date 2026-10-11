@@ -14,6 +14,7 @@ from hidpin.device import (
     PinConfigRejected,
     ProtocolVersionError,
     PullDownUnreliableWarning,
+    SeveralDevices,
 )
 from hidpin.protocol import PinMode, PinSetting, Reason, Result, StatusFlags
 
@@ -205,6 +206,70 @@ def test_status_flags_are_exposed():
     assert report.events[0].gpio == 5
 
 
+def test_set_outputs_rejects_gpios_out_of_range():
+    device, handle = make_device()
+    with pytest.raises(HidpinError, match="GPIO30 is out of range"):
+        device.set_outputs({7: True, 30: True})
+    assert handle.output_writes == []
+
+
+class FakeBackend:
+    """A backend with some devices plugged in, each a FakeHandle."""
+
+    def __init__(self, *handles_by_serial: tuple[str, FakeHandle]):
+        self.handles = dict(handles_by_serial)
+
+    def enumerate(self, vendor_id=0, product_id=0):
+        return [
+            {"path": serial.encode(), "serial_number": serial, "usage_page": 0xFF00, "usage": 0x01}
+            for serial in self.handles
+        ]
+
+    def device(self):
+        return _Opener(self.handles)
+
+
+class _Opener:
+    """What hid.device() returns: it becomes one of the handles once open_path() picks it."""
+
+    def __init__(self, handles: dict[str, FakeHandle]):
+        self._handles = handles
+        self._handle: FakeHandle | None = None
+
+    def open_path(self, path: bytes) -> None:
+        self._handle = self._handles[path.decode()]
+
+    def __getattr__(self, name):
+        return getattr(self._handle, name)
+
+
+def test_open_closes_the_device_when_the_protocol_version_differs():
+    handle = FakeHandle(protocol_version=2)
+    with pytest.raises(ProtocolVersionError):
+        Device.open(backend=FakeBackend(("A", handle)))
+    assert handle.closed
+
+
+def test_open_refuses_to_guess_between_several_devices():
+    backend = FakeBackend(("B", FakeHandle()), ("A", FakeHandle()))
+    with pytest.raises(SeveralDevices, match="A, B"):
+        Device.open(backend=backend)
+    assert Device.open("B", backend=backend).serial == "B"
+
+
+def test_find_devices_skips_other_usages_and_sorts_by_serial():
+    class Backend:
+        def enumerate(self, vendor_id=0, product_id=0):
+            return [
+                {"path": b"/dev/hidraw2", "serial_number": "B", "usage_page": 0xFF00, "usage": 0x01},
+                {"path": b"/dev/hidraw1", "serial_number": "A", "usage_page": 0xFF00, "usage": 0x01},
+                {"path": b"/dev/hidraw0", "serial_number": "C", "usage_page": 0x01, "usage": 0x06},
+                {"path": b"/dev/hidraw3", "serial_number": "D", "usage_page": 0xFF00, "usage": 0x02},
+            ]
+
+    assert [entry.serial for entry in device_module.find_devices(backend=Backend())] == ["A", "B"]
+
+
 class RecordingBackend:
     """A backend that only records the ids find_devices() filters by."""
 
@@ -251,3 +316,138 @@ def test_close_closes_handle():
     with device:
         pass
     assert handle.closed
+
+
+# --- error messages (HOST_API.md 8) ---------------------------------------------------
+
+
+def test_error_messages_follow_the_specification():
+    assert str(ProtocolVersionError(2)) == "device speaks protocol version 2, this library speaks 1"
+    assert str(PinConfigRejected(Result.UNAVAILABLE_GPIO, 23, local=True)) == (
+        "the pin configuration is invalid (nothing was sent to the device): "
+        "the pin is not an available GPIO (GPIO23)"
+    )
+    assert str(PinConfigRejected(Result.BAD_LENGTH, protocol.RESULT_GPIO_NONE)) == (
+        "the device rejected the pin configuration: the payload is not 63 bytes long"
+    )
+    assert str(PinConfigConflict(17, 42)) == (
+        "another process changed the pin configuration (sent request_id 17, read back 42)"
+    )
+
+
+# --- choosing and opening (HOST_API.md 6, 7.1) -----------------------------------------
+
+
+def entries(*serials: str) -> list[device_module.DeviceEntry]:
+    return [device_module.DeviceEntry(f"/dev/hidraw{i}".encode(), serial, "yukke.org", "hidpin") for i, serial in enumerate(serials)]
+
+
+def test_choose_device_takes_the_only_one_or_the_named_one():
+    assert device_module.choose_device(entries("A")).serial == "A"
+    assert device_module.choose_device(entries("A", "B"), "B").serial == "B"
+
+
+def test_choose_device_without_devices():
+    with pytest.raises(device_module.DeviceNotFound, match="^no hidpin device found$"):
+        device_module.choose_device([])
+
+
+def test_choose_device_with_an_unknown_serial_number():
+    with pytest.raises(device_module.DeviceNotFound, match="no hidpin device with serial number C"):
+        device_module.choose_device(entries("A", "B"), "C")
+
+
+def test_choose_device_refuses_to_guess():
+    with pytest.raises(SeveralDevices, match="pick one with --serial: A, B"):
+        device_module.choose_device(entries("A", "B"))
+
+
+def test_open_explains_permission_errors():
+    class Backend:
+        def device(self):
+            class Handle:
+                def open_path(self, path):
+                    raise PermissionError(13, "Permission denied")
+
+            return Handle()
+
+    with pytest.raises(HidpinError, match="install the udev rule"):
+        Device.open(path=b"/dev/hidraw0", backend=Backend())
+
+
+def test_system_bus_lists_and_opens_through_its_backend():
+    handle = FakeHandle()
+    bus = device_module.SystemBus(backend=FakeBackend(("A", handle)))
+    assert [entry.serial for entry in bus.devices()] == ["A"]
+    opened = bus.open(bus.devices()[0])
+    assert Device(opened).info.board_name == "Raspberry Pi Pico"
+
+
+# --- reports of the wrong shape --------------------------------------------------------
+
+
+def test_short_feature_report_is_an_error():
+    device, handle = make_device()
+    handle.get_feature_report = lambda report_id, length: [report_id, 1, 2]
+    with pytest.raises(HidpinError, match="only 3 bytes long"):
+        _ = device.info
+
+
+def test_feature_report_with_another_id_is_an_error():
+    device, handle = make_device()
+    original = handle.get_feature_report
+    handle.get_feature_report = lambda report_id, length: [3] + original(report_id, length)[1:]
+    with pytest.raises(HidpinError, match="asked for feature report 2 but got report 3"):
+        _ = device.info
+
+
+def test_unexpected_input_report_is_an_error():
+    device, handle = make_device()
+    handle.reads.append(bytes([protocol.REPORT_ID_OUTPUT]) + bytes(63))
+    with pytest.raises(HidpinError, match="unexpected report ID 4"):
+        device.read_status()
+
+
+def test_short_input_report_on_request_is_an_error():
+    device, handle = make_device()
+    handle.get_input_report = lambda report_id, length: [report_id]
+    with pytest.raises(HidpinError, match="could not read the status report"):
+        device.request_status()
+
+
+# --- caching and request ids (HOST_API.md 7.2, 7.3) --------------------------------------
+
+
+def test_pin_config_is_read_only_when_not_cached():
+    device, handle = make_device()
+    reads = []
+    original = handle.get_feature_report
+    handle.get_feature_report = lambda report_id, length: reads.append(report_id) or original(report_id, length)
+    assert device.pin_config[5] == PinSetting.monitor(PinMode.PULLUP, 20)
+    assert device.pin_config[5] == PinSetting.monitor(PinMode.PULLUP, 20)
+    assert reads == [protocol.REPORT_ID_PIN_CONFIG]
+
+
+def test_request_id_is_never_the_one_used_last(monkeypatch):
+    device, handle = make_device()
+    drawn = iter([200, 200, 200, 31])
+    monkeypatch.setattr(device_module.random, "randint", lambda low, high: next(drawn))
+    device.update_pins({5: PinSetting.unused()})
+    device.update_pins({6: PinSetting.unused()})
+    assert [write[3] for write in handle.feature_writes] == [200, 31]
+
+
+def test_request_ids_stay_within_1_to_255():
+    device, handle = make_device()
+    for i in range(50):
+        device.update_pins({5: PinSetting.monitor(PinMode.PULLUP, i)})
+    ids = [write[3] for write in handle.feature_writes]
+    assert all(1 <= request_id <= 255 for request_id in ids)
+    assert all(a != b for a, b in zip(ids, ids[1:]))
+
+
+def test_update_pins_rejects_gpios_out_of_range():
+    device, handle = make_device()
+    with pytest.raises(ValueError, match="GPIO30 is out of range"):
+        device.update_pins({30: PinSetting.unused()})
+    assert handle.feature_writes == []

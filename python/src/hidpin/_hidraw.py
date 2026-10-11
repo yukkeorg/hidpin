@@ -54,6 +54,43 @@ def _uevent_fields(path: Path) -> dict[str, str]:
     return fields
 
 
+def top_level_usage(descriptor: bytes) -> tuple[int, int]:
+    """The Usage Page and Usage of the first application collection of a report descriptor.
+
+    Returns (0, 0) when the descriptor has none, so the caller treats the usage as unknown.
+    """
+    usage_page = usage = 0
+    i = 0
+    while i < len(descriptor):
+        prefix = descriptor[i]
+        if prefix == 0xFE:  # long item: the data size is in the next byte
+            if i + 1 >= len(descriptor):
+                break
+            i += 3 + descriptor[i + 1]
+            continue
+        size = (0, 1, 2, 4)[prefix & 0x03]
+        data = int.from_bytes(descriptor[i + 1 : i + 1 + size], "little")
+        i += 1 + size
+        item = prefix & 0xFC
+        if item == 0x04:  # Usage Page (global)
+            usage_page = data
+        elif item == 0x08:  # Usage (local); a 4-byte usage carries its page in the upper half
+            if size == 4:
+                usage_page, usage = data >> 16, data & 0xFFFF
+            else:
+                usage = data
+        elif item == 0xA0 and data == 0x01:  # Collection (Application)
+            return usage_page, usage
+    return 0, 0
+
+
+def _read_bytes(path: Path) -> bytes:
+    try:
+        return path.read_bytes()
+    except OSError:
+        return b""
+
+
 def enumerate(vendor_id: int = 0, product_id: int = 0) -> list[dict]:
     """Lists hidraw devices, in the shape hid.enumerate() returns."""
     results = []
@@ -70,6 +107,7 @@ def enumerate(vendor_id: int = 0, product_id: int = 0) -> list[dict]:
             continue
 
         usb_device = (node / "device").resolve().parent.parent
+        usage_page, usage = top_level_usage(_read_bytes(node / "device" / "report_descriptor"))
         results.append(
             {
                 "path": str(DEV_DIR / node.name).encode(),
@@ -78,8 +116,8 @@ def enumerate(vendor_id: int = 0, product_id: int = 0) -> list[dict]:
                 "serial_number": fields.get("HID_UNIQ", "") or _read_text(usb_device / "serial"),
                 "manufacturer_string": _read_text(usb_device / "manufacturer"),
                 "product_string": _read_text(usb_device / "product") or fields.get("HID_NAME", ""),
-                "usage_page": 0,  # the kernel does not expose it here; the caller checks the reports instead
-                "usage": 0,
+                "usage_page": usage_page,  # 0 when the report descriptor cannot be read
+                "usage": usage,
                 "interface_number": -1,
             }
         )

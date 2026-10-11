@@ -113,6 +113,14 @@ class Quirk(IntFlag):
     PULL_DOWN_UNRELIABLE = 0x01  # RP2350 erratum E9: internal pull-downs cannot hold an input low
 
 
+def result_message(result: int) -> str:
+    """One line of English for a result of the pin configuration (HOST_API.md 4.1)."""
+    try:
+        return RESULT_MESSAGES[Result(result)]
+    except ValueError:
+        return f"result {int(result)}"
+
+
 def mask_to_gpios(mask: int) -> list[int]:
     return [gpio for gpio in range(GPIO_COUNT) if mask >> gpio & 1]
 
@@ -361,6 +369,11 @@ class PinConfig:
     def __post_init__(self) -> None:
         if len(self.pins) != GPIO_COUNT:
             raise ValueError(f"pin configuration needs {GPIO_COUNT} entries, got {len(self.pins)}")
+
+    @classmethod
+    def unused(cls) -> "PinConfig":
+        """Every GPIO unused; the start of a target pin configuration built with with_pins()."""
+        return cls(tuple(PinSetting.unused() for _ in range(GPIO_COUNT)))
 
     @classmethod
     def default(cls, available: int) -> "PinConfig":
