@@ -2,36 +2,30 @@
 
 **English** | [日本語](README.ja.md)
 
-hidpin watches the GPIO pins of an RP2040 or RP2350 board and reports their state to a computer over
-USB-HID. The board appears as a **vendor-defined HID device**, so it runs on the drivers the
-operating system already ships. It does not pretend to be a keyboard or a mouse, which is why
-an application on the host can read the state of every pin as it is.
+hidpin turns an RP2040 or RP2350 board into a device that watches its GPIO pins and reports their
+state to a computer over USB-HID. The board appears as a **vendor-defined HID device**, so it runs on
+the drivers the operating system already ships. It does not pretend to be a keyboard or a mouse;
+through the bundled host libraries, an application can read the state of every pin as it is.
 
-Supported boards:
+Boards with a preset:
 
-| Board | Available GPIOs | Status LED |
-|---|---|---|
-| Raspberry Pi Pico | 26 (GPIO0–22, 26–28) | on-board LED (GPIO25): on, off briefly on activity |
+| Board                 | Available GPIOs         | Status LED                                         |
+| --------------------- | ----------------------- | -------------------------------------------------- |
+| Raspberry Pi Pico     | 26 (GPIO0–22, 26–28)    | on-board LED (GPIO25): on, off briefly on activity |
 | Adafruit QT Py RP2040 | 13 (GPIO3–6, 20, 22–29) | NeoPixel (GPIO12): green, blue briefly on activity |
-| Raspberry Pi Pico 2 | 26 (GPIO0–22, 26–28) | on-board LED (GPIO25): on, off briefly on activity |
+| Raspberry Pi Pico 2   | 26 (GPIO0–22, 26–28)    | on-board LED (GPIO25): on, off briefly on activity |
 
-The status LED lights as soon as the board is powered. "Activity" is an edge event on a monitored
-pin or an applied output report; the LED then changes for about 100 ms.
+Any other RP2040 or RP2350A board that the Pico SDK knows can be used too, by giving its available
+GPIOs when building (see [Build the firmware](#1-build-the-firmware)).
+Boards with an RP2350B (48 GPIOs) are not supported for now.
 
-On the first RP2350 stepping (A2), the internal pull-downs cannot hold an input low (erratum E9).
-The board reports this: `hidpin info` shows it, and the host tools warn when a pin is monitored
-with the pull-down. Use the pull-up, or an external pull-down of 8.2 kΩ or less with `nopull`.
-The default configuration uses pull-ups and is not affected.
+The status LED lights as soon as the board is powered.
 
-> **Status**: the tests on a PC pass (33 for the firmware core, 65 for the host), and the
-> software has been **verified on a real Adafruit QT Py RP2040** (2026-09-17): enumeration,
-> monitoring and edge events, debouncing, pin configuration, outputs, and the recovery after a
-> bus reset. The Raspberry Pi Pico and Pico 2 have not been tried yet. The procedure is in
-> [docs/TESTING.md](docs/TESTING.md).
-
-The documents in `docs/` are written in English, each with a Japanese translation next to it
-(`*-ja.md`); the glossary `CONTEXT.md` is in Japanese. The protocol specification
-([docs/PROTOCOL.md](docs/PROTOCOL.md)) is the authority on the wire format.
+> [!WARNING]
+> On the first RP2350 stepping (A2), the internal pull-downs cannot hold an input low (erratum E9).
+> The board reports this: `hidpin info` shows it, and the host tools warn when a pin is monitored
+> with the pull-down. Use the pull-up, or an external pull-down of 8.2 kΩ or less with `nopull`.
+> The default configuration uses pull-ups and is not affected.
 
 ## What it does
 
@@ -43,11 +37,12 @@ The documents in `docs/` are written in English, each with a Japanese translatio
   disconnected or suspended
 - Several boards at once, told apart by their USB serial number (the board's unique ID)
 
-Out of scope: analogue inputs (ADC), I2C or SPI bridging, acting as a keyboard.
+As hidpin takes essentially every pin usable as a GPIO, the board cannot also serve analogue inputs
+(ADC), I2C or SPI bridging, or keyboard input.
 
 ## Getting started
 
-### 1. Flash the firmware
+### 1. Build the firmware
 
 You need CMake 3.20 or newer, Ninja and `arm-none-eabi-gcc`. The Pico SDK is taken from
 `PICO_SDK_PATH` when it is set, and otherwise fetched (release 2.3.1) during configuration.
@@ -57,8 +52,16 @@ cmake -S firmware -B build/pico -G Ninja -DPICO_BOARD=pico   # Pico 2: pico2, QT
 cmake --build build/pico
 ```
 
-Hold BOOTSEL while plugging in the board, then copy `build/pico/hidpin.uf2` onto the drive that
-appears.
+For a board without a preset, list its available GPIOs. Leave out the GPIOs wired to the board's own
+parts; on the Pico W, for example, GPIO23–25 and 29 go to the wireless chip:
+
+```
+cmake -S firmware -B build/pico_w -G Ninja -DPICO_BOARD=pico_w -DHIDPIN_GPIOS=0-22,26-28
+```
+
+Configuring stops with an error when `HIDPIN_GPIOS` is missing for such a board, and when the board has
+an RP2350B. `HIDPIN_GPIOS` also replaces the preset of the boards above. A board without a preset
+reports board type 0 and its Pico SDK name (`hidpin info` shows it).
 
 Add `-DHIDPIN_DEBUG=ON` for a build that also exposes a USB serial (CDC) interface carrying
 debug logs.
@@ -70,9 +73,16 @@ The status LED is the board's own unless you choose another GPIO when configurin
 -DHIDPIN_STATUS_LED_PIN=16 -DHIDPIN_STATUS_LED_TYPE=ws2812  # a WS2812 (NeoPixel)
 ```
 
-That GPIO is then left out of the available GPIOs, so it can no longer be monitored or driven.
+That GPIO is then left out of the preset, so it can no longer be monitored or driven. A list given
+with `HIDPIN_GPIOS` must not include the GPIOs of the status LED.
 
-### 2. Set up the host (Linux)
+### 2. Flash the firmware
+
+Hold BOOTSEL while plugging in the board (the BOOT button on the QT Py), then copy the `hidpin.uf2`
+of the build directory (`build/pico/hidpin.uf2` above) onto the drive that appears. The drive
+disappears by itself and the board restarts with hidpin.
+
+### 3. Set up the host (Linux)
 
 ```
 sudo cp udev/60-hidpin.rules /etc/udev/rules.d/
@@ -104,7 +114,7 @@ the kernel driver — hence hidraw being the default on Linux.
 Python 3.11 or newer. Tested on Linux (hidraw); Windows and macOS should work through hidapi,
 but have not been tried.
 
-### 3. Use the command
+### 4. Use the command
 
 ```
 hidpin list                             # connected devices, with their serial numbers
@@ -123,7 +133,7 @@ Switches are meant to be wired to GND and used with a pull-up. Pressing one pull
 so the host reads "LOW = ON" by default. Change it per pin with, for example,
 `hidpin watch --active-high 7`.
 
-### 4. Use it as a library
+### 5. Use it as a library
 
 ```python
 from hidpin import Device, PinMode, PinSetting
@@ -160,6 +170,10 @@ go.mod                the Go module github.com/yukkeorg/hidpin
 udev/                 the Linux udev rule
 ```
 
+The documents in `docs/` are written in English, each with a Japanese translation next to it
+(`*-ja.md`, for example [docs/PROTOCOL-ja.md](docs/PROTOCOL-ja.md)); the glossary `CONTEXT.md` is in
+Japanese.
+
 To change the protocol, edit `docs/PROTOCOL.md` and its Japanese translation `docs/PROTOCOL-ja.md`,
 update `protocol/vectors.json`, then bring both
 implementations in line. The specification is the authority and the test data follows from it.
@@ -182,10 +196,7 @@ hidpin has its own USB identifiers, **1209:6870**, allocated by
 [pid.codes](https://pid.codes/1209/6870/). The firmware, the host tools and the udev rule use them
 by default.
 
-If you redistribute a device whose firmware you have changed, give it a PID of its own; pid.codes
-allocates them free when the source is public under an open source licence
-([how to](https://pid.codes/howto/)). For in-house experiments the pid.codes test PID 1209:0001 may
-be used, but never on a device that is redistributed, sold or manufactured.
+If you redistribute a device whose firmware you have changed, give it a PID of its own.
 
 Building and connecting with other ids:
 
