@@ -118,6 +118,7 @@ hidpin output 7=high                    # 出力の値を変える
 ```
 
 どのコマンドも `--json` を付けると機械可読な出力になります。複数台つながっているときは `--serial` で選びます。
+`hidpin watch` は、ボードを抜き差ししても動き続けます。
 
 スイッチは GND につなぎ、プルアップで使う想定です。押すと LOW になるので、ホスト側は既定で
 「LOW = ON」と解釈します。`hidpin watch --active-high 7` のように、ピンごとに変更できます。
@@ -140,6 +141,22 @@ with Device.open() as device:                      # 複数台あるときは De
         print(device.on_off(report))                # {5: True, 6: False, ...}
 ```
 
+長く動かし続けるプログラムでは、`watch()` がボードとの接続を保ちます。
+ボードを待ち、抜かれたら開き直し、ピン設定を目標に保ち、起きたことを出来事として渡します。
+asyncio では `async_watch()` が同じことをします（`async for event in watcher`）。
+
+```python
+from hidpin import OnOffChange, PinConfig, PinMode, PinSetting, watch
+
+target = PinConfig.unused().with_pins({5: PinSetting.monitor(PinMode.PULLUP, 20)})
+with watch(target_pins=target) as watcher:          # 複数台あるときは watch("シリアル番号", ...)
+    for event in watcher:
+        if isinstance(event, OnOffChange):
+            print(event.gpio, "ON" if event.on else "OFF", event.time)
+```
+
+両方のホストライブラリの API と、ほかの言語で作るときの仕様は [docs/HOST_API-ja.md](docs/HOST_API-ja.md) にあります。
+
 ## リポジトリの構成
 
 ```
@@ -147,6 +164,7 @@ CONTEXT.md            用語集（デバイス、監視ピン、ピンレベル�
 docs/CONCEPT.md       最初の構想
 docs/PROTOCOL.md      USB-HID プロトコル版 1 の仕様（正）
 docs/TESTING.md       実機での確認手順
+docs/HOST_API.md      ホストライブラリが提供する API（新しい言語で作るときの仕様）
 docs/adr/             設計判断の記録
 protocol/vectors.json C と Python の両方のテストが参照するテストデータ
 firmware/core/        SDK に依存しないコア（レポート、チャタリング除去、イベント、エンジン）

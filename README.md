@@ -127,7 +127,7 @@ hidpin output 7=high                    # change the value of an output
 ```
 
 Every command takes `--json` for machine-readable output, and `--serial` to pick one of several
-connected boards.
+connected boards. `hidpin watch` keeps going when the board is unplugged and plugged in again.
 
 Switches are meant to be wired to GND and used with a pull-up. Pressing one pulls the pin LOW,
 so the host reads "LOW = ON" by default. Change it per pin with, for example,
@@ -151,6 +151,23 @@ with Device.open() as device:                      # Device.open("SERIAL") picks
         print(device.on_off(report))                # {5: True, 6: False, ...}
 ```
 
+For a program that runs for a long time, `watch()` keeps the board connected: it waits for the
+board, reopens it after it was unplugged, keeps the pin configuration at a target and reports what
+happens as events. `async_watch()` does the same for asyncio (`async for event in watcher`).
+
+```python
+from hidpin import OnOffChange, PinConfig, PinMode, PinSetting, watch
+
+target = PinConfig.unused().with_pins({5: PinSetting.monitor(PinMode.PULLUP, 20)})
+with watch(target_pins=target) as watcher:          # watch("SERIAL", ...) picks one of several
+    for event in watcher:
+        if isinstance(event, OnOffChange):
+            print(event.gpio, "ON" if event.on else "OFF", event.time)
+```
+
+The API of both host libraries, and the specification for one in another language, is in
+[docs/HOST_API.md](docs/HOST_API.md).
+
 ## Repository layout
 
 ```
@@ -158,6 +175,7 @@ CONTEXT.md            glossary (device, monitored pin, pin level, status report,
 docs/CONCEPT.md       the original concept
 docs/PROTOCOL.md      the USB-HID protocol version 1 (the authority)
 docs/TESTING.md       what to check on real hardware
+docs/HOST_API.md      the API every host library provides (the specification for new languages)
 docs/adr/             records of design decisions
 protocol/vectors.json test data both the C and the Python tests read
 firmware/core/        the core, free of SDK dependencies (reports, debouncing, events, engine)
