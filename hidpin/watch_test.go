@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -480,5 +481,74 @@ func TestCancellingTheContextStopsTheWatcher(t *testing.T) {
 	cancel()
 	if err := awaitStop(t, w); err != nil {
 		t.Errorf("stopped with %v", err)
+	}
+}
+
+func TestSetTargetPinsValidatesBeforeReachingTheDevice(t *testing.T) {
+	w, _, board, target := ownerWatch(t)
+	bad := *target
+	bad[3] = hidpin.PinSetting{Mode: hidpin.ModeUnused, Param: 1}
+	var rejected *hidpin.PinConfigRejectedError
+	if err := w.SetTargetPins(bad); !errors.As(err, &rejected) || !rejected.Local || rejected.GPIO != 3 {
+		t.Errorf("got %v", err)
+	}
+	if board.PinConfig() != *target {
+		t.Error("the board was written")
+	}
+}
+
+func TestSetTargetPinsToTheCurrentOneWritesNothing(t *testing.T) {
+	w, _, board, target := ownerWatch(t)
+	if err := w.SetTargetPins(*target); err != nil {
+		t.Fatal(err)
+	}
+	expectNo[hidpin.OutputsReset](t, w, 100*time.Millisecond)
+	if board.PinConfig() != *target {
+		t.Error("the board changed")
+	}
+}
+
+// flakyBus fails to list devices until it is told to work.
+type flakyBus struct {
+	*hidpintest.Bus
+	failing atomic.Bool
+}
+
+func (b *flakyBus) Devices() ([]hidpin.Entry, error) {
+	if b.failing.Load() {
+		return nil, errors.New("cannot list /sys/class/hidraw")
+	}
+	return b.Bus.Devices()
+}
+
+func TestBusFailuresAreReportedAndRetried(t *testing.T) {
+	bus := &flakyBus{Bus: hidpintest.NewBus(hidpintest.NewBoard(serialA))}
+	bus.failing.Store(true)
+	w := startWatch(t, hidpin.WatchOptions{Bus: bus})
+	if failed := await[hidpin.ConnectFailed](t, w); failed.Err.Error() != "cannot list /sys/class/hidraw" {
+		t.Errorf("failed with %v", failed.Err)
+	}
+	bus.failing.Store(false)
+	await[hidpin.Connected](t, w)
+}
+
+func TestWritingBackIsLimitedToOnceASecond(t *testing.T) {
+	w, _, board, target := ownerWatch(t)
+	other := *target
+	other[5] = hidpin.Unused()
+	board.WritePinConfig(other)
+	if first := await[hidpin.PinConfigRestored](t, w); first.Count != 1 {
+		t.Fatalf("first %+v", first)
+	}
+	restoredAt := time.Now()
+	board.WritePinConfig(other)
+	if second := await[hidpin.PinConfigRestored](t, w); second.Count != 2 {
+		t.Errorf("second %+v", second)
+	}
+	if elapsed := time.Since(restoredAt); elapsed < 900*time.Millisecond {
+		t.Errorf("wrote back again after %v", elapsed)
+	}
+	if board.PinConfig() != *target {
+		t.Error("the target was not restored")
 	}
 }

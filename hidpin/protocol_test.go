@@ -337,3 +337,88 @@ func TestReasonAndFlagNames(t *testing.T) {
 		t.Errorf("flags %v", got)
 	}
 }
+
+func TestEmptyFlagsPrintAsZero(t *testing.T) {
+	if Reason(0).String() != "0" || StatusFlags(0).String() != "0" || FlagOverflow.String() != "OVERFLOW" {
+		t.Errorf("%q %q %q", Reason(0).String(), StatusFlags(0).String(), FlagOverflow.String())
+	}
+}
+
+func TestResultMessages(t *testing.T) {
+	want := map[Result]string{
+		ResultOK:              "applied",
+		ResultBadLength:       "the payload is not 63 bytes long",
+		ResultBadMode:         "mode is outside 0-4",
+		ResultUnavailableGPIO: "the pin is not an available GPIO",
+		ResultUnusedWithParam: "an unused pin was given a parameter",
+		ResultBadOutputLevel:  "the initial output level is neither 0 nor 1",
+		Result(9):             "result 9",
+	}
+	for result, message := range want {
+		if got := result.Message(); got != message {
+			t.Errorf("%d: %q, want %q", result, got, message)
+		}
+	}
+}
+
+func TestUnknownChipsAndBoards(t *testing.T) {
+	if Chip(0).Name() != "not reported" || Chip(7).Name() != "unknown chip 7" || Board(9).Name() != "unknown board 9" {
+		t.Errorf("%q %q %q", Chip(0).Name(), Chip(7).Name(), Board(9).Name())
+	}
+}
+
+func TestPinSettingKinds(t *testing.T) {
+	for _, c := range []struct {
+		setting           PinSetting
+		monitored, output bool
+	}{
+		{Unused(), false, false},
+		{MonitorNoPull(0), true, false},
+		{MonitorPullUp(20), true, false},
+		{MonitorPullDown(255), true, false},
+		{Output(true), false, true},
+	} {
+		if c.setting.IsMonitored() != c.monitored || c.setting.IsOutput() != c.output {
+			t.Errorf("%v: monitored %v, output %v", c.setting, c.setting.IsMonitored(), c.setting.IsOutput())
+		}
+	}
+}
+
+func TestWithPinsKeepsTheOriginalAndRejectsGPIOsOutOfRange(t *testing.T) {
+	var original PinConfig
+	changed, err := original.WithPins(map[int]PinSetting{0: Output(true), 29: MonitorPullUp(20)})
+	if err != nil || changed.OutputsMask() != 1 || changed.MonitoredMask() != 1<<29 || original != (PinConfig{}) {
+		t.Errorf("changed %v, original %v, %v", changed, original, err)
+	}
+	for _, gpio := range []int{-1, 30} {
+		if _, err := original.WithPins(map[int]PinSetting{gpio: Unused()}); err == nil {
+			t.Errorf("GPIO%d accepted", gpio)
+		}
+	}
+}
+
+func TestPullDownGPIOsAreInOrder(t *testing.T) {
+	config, _ := PinConfig{}.WithPins(map[int]PinSetting{9: MonitorPullDown(20), 2: MonitorPullDown(20)})
+	if got := config.PullDownGPIOs(); !reflect.DeepEqual(got, []int{2, 9}) {
+		t.Errorf("got %v", got)
+	}
+}
+
+func TestStatusEncodeRejectsMoreThanSevenEvents(t *testing.T) {
+	s := Status{Events: make([]EdgeEvent, EventsPerReport+1)}
+	if _, err := s.Encode(); err == nil {
+		t.Error("eight events encoded")
+	}
+}
+
+func TestOutputResetCauses(t *testing.T) {
+	want := []string{"USB suspend or bus reset", "reconnected", "pin configuration written"}
+	for i, cause := range []OutputResetCause{OutputResetSuspend, OutputResetReconnect, OutputResetPinConfig} {
+		if cause.String() != want[i] {
+			t.Errorf("%d: %q", cause, cause.String())
+		}
+	}
+	if OutputResetCause(9).String() != "cause 9" {
+		t.Errorf("unknown cause %q", OutputResetCause(9).String())
+	}
+}

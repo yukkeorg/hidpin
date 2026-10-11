@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -354,6 +355,30 @@ func TestWatchFailsWithoutDevice(t *testing.T) {
 	bus.Unplug(board)
 	code, _, errOut := runCLI(context.Background(), "watch")
 	if code != 1 || errOut != "error: no hidpin device found\n" {
+		t.Errorf("%d %q", code, errOut)
+	}
+}
+
+func TestWatchReportsConfigurationChangesAndOutputResets(t *testing.T) {
+	_, board := withBoard(t)
+	stdout, _, stop := startWatch()
+	stdout.waitFor(t, "GPIO5=OFF")
+	other := board.PinConfig()
+	other[7] = hidpin.Output(false) // another program makes GPIO7 an output
+	board.WritePinConfig(other)
+	stdout.waitFor(t, "the pin configuration changed")
+	board.Suspend()
+	stdout.waitFor(t, "outputs returned to their initial level (USB disconnect or suspend)")
+	if code := stop(); code != 0 {
+		t.Errorf("exit %d", code)
+	}
+}
+
+func TestWatchFailsWhenTheDeviceCannotBeOpened(t *testing.T) {
+	_, board := withBoard(t)
+	board.SetOpenError(os.ErrPermission)
+	code, _, errOut := runCLI(context.Background(), "watch")
+	if code != 1 || errOut != "error: permission denied\n" {
 		t.Errorf("%d %q", code, errOut)
 	}
 }

@@ -185,3 +185,187 @@ func TestUSBIDsFromEnvironment(t *testing.T) {
 		}
 	}
 }
+
+// --- error messages (HOST_API.md 8) ---------------------------------------------------
+
+func TestErrorMessagesFollowTheSpecification(t *testing.T) {
+	for _, c := range []struct {
+		err  error
+		want string
+	}{
+		{&hidpin.ProtocolVersionError{DeviceVersion: 2}, "device speaks protocol version 2, this library speaks 1"},
+		{&hidpin.PinConfigRejectedError{Result: hidpin.ResultUnavailableGPIO, GPIO: 23, Local: true},
+			"the pin configuration is invalid (nothing was sent to the device): the pin is not an available GPIO (GPIO23)"},
+		{&hidpin.PinConfigRejectedError{Result: hidpin.ResultBadLength, GPIO: hidpin.ResultGPIONone},
+			"the device rejected the pin configuration: the payload is not 63 bytes long"},
+		{&hidpin.PinConfigConflictError{Expected: 17, Seen: 42},
+			"another process changed the pin configuration (sent request_id 17, read back 42)"},
+	} {
+		if got := c.err.Error(); got != c.want {
+			t.Errorf("got %q, want %q", got, c.want)
+		}
+	}
+}
+
+// --- choosing a device (HOST_API.md 6) ---------------------------------------------------
+
+func entries(serials ...string) []hidpin.Entry {
+	var list []hidpin.Entry
+	for i, serial := range serials {
+		list = append(list, hidpin.Entry{Path: "/dev/hidraw" + string(rune('0'+i)), Serial: serial})
+	}
+	return list
+}
+
+func TestChooseDeviceTakesTheOnlyOneOrTheNamedOne(t *testing.T) {
+	if entry, err := hidpin.ChooseDevice(entries("A"), ""); err != nil || entry.Serial != "A" {
+		t.Errorf("only one: %+v, %v", entry, err)
+	}
+	if entry, err := hidpin.ChooseDevice(entries("A", "B"), "B"); err != nil || entry.Serial != "B" {
+		t.Errorf("named: %+v, %v", entry, err)
+	}
+}
+
+func TestChooseDeviceWithoutDevices(t *testing.T) {
+	if _, err := hidpin.ChooseDevice(nil, ""); err != hidpin.ErrNotFound {
+		t.Errorf("got %v", err)
+	}
+}
+
+func TestChooseDeviceWithAnUnknownSerialNumber(t *testing.T) {
+	_, err := hidpin.ChooseDevice(entries("A", "B"), "C")
+	if !errors.Is(err, hidpin.ErrNotFound) || err.Error() != "no hidpin device found: no device with serial number C" {
+		t.Errorf("got %v", err)
+	}
+}
+
+func TestChooseDeviceRefusesToGuess(t *testing.T) {
+	_, err := hidpin.ChooseDevice(entries("A", "B"), "")
+	if !errors.Is(err, hidpin.ErrSeveralDevices) || err.Error() != "several devices are connected; pick one with --serial: A, B" {
+		t.Errorf("got %v", err)
+	}
+}
+
+// --- reports of the wrong shape --------------------------------------------------------
+
+// misbehaving wraps the fake and replaces what some reads return.
+type misbehaving struct {
+	*hidpintest.Fake
+	feature      func(buf []byte) (int, error)
+	input        func(buf []byte) (int, error)
+	featureReads []uint8
+}
+
+func (m *misbehaving) GetFeatureReport(buf []byte) (int, error) {
+	m.featureReads = append(m.featureReads, buf[0])
+	if m.feature != nil {
+		return m.feature(buf)
+	}
+	return m.Fake.GetFeatureReport(buf)
+}
+
+func (m *misbehaving) GetInputReport(buf []byte) (int, error) {
+	if m.input != nil {
+		return m.input(buf)
+	}
+	return m.Fake.GetInputReport(buf)
+}
+
+func newMisbehaving() (*hidpin.Device, *misbehaving) {
+	m := &misbehaving{Fake: hidpintest.New(hidpin.ProtocolVersion)}
+	return hidpin.NewDevice(m, "ABCD0123456789EF"), m
+}
+
+func TestShortFeatureReportIsAnError(t *testing.T) {
+	device, m := newMisbehaving()
+	m.feature = func(buf []byte) (int, error) { return 3, nil }
+	if _, err := device.Info(); err == nil || err.Error() != "feature report 2 is only 3 bytes long" {
+		t.Errorf("got %v", err)
+	}
+}
+
+func TestFeatureReportWithAnotherIDIsAnError(t *testing.T) {
+	device, m := newMisbehaving()
+	m.feature = func(buf []byte) (int, error) {
+		n, err := m.Fake.GetFeatureReport(buf)
+		buf[0] = 3
+		return n, err
+	}
+	if _, err := device.Info(); err == nil || err.Error() != "asked for feature report 2 but got report 3" {
+		t.Errorf("got %v", err)
+	}
+}
+
+func TestFailedFeatureReadIsWrapped(t *testing.T) {
+	device, m := newMisbehaving()
+	gone := errors.New("no such device")
+	m.feature = func(buf []byte) (int, error) { return 0, gone }
+	if _, err := device.GetPinConfig(); !errors.Is(err, gone) {
+		t.Errorf("got %v", err)
+	}
+}
+
+func TestUnexpectedInputReportIsAnError(t *testing.T) {
+	device, fake := newDevice()
+	fake.Reads = append(fake.Reads, append([]byte{hidpin.ReportIDOutput}, make([]byte, hidpin.PayloadLen)...))
+	if _, _, err := device.ReadStatus(time.Millisecond); err == nil || err.Error() != "received an unexpected report ID 4" {
+		t.Errorf("got %v", err)
+	}
+}
+
+func TestShortStatusReportIsAnError(t *testing.T) {
+	device, fake := newDevice()
+	fake.Reads = append(fake.Reads, []byte{hidpin.ReportIDStatus, 0, 0})
+	if _, _, err := device.ReadStatus(time.Millisecond); err == nil || err.Error() != "status report is only 3 bytes long" {
+		t.Errorf("got %v", err)
+	}
+}
+
+func TestShortInputReportOnRequestIsAnError(t *testing.T) {
+	device, m := newMisbehaving()
+	m.input = func(buf []byte) (int, error) { return 1, nil }
+	if _, err := device.RequestStatus(); err == nil || err.Error() != "could not read the status report" {
+		t.Errorf("got %v", err)
+	}
+}
+
+// --- caching and request ids (HOST_API.md 7.2, 7.3) --------------------------------------
+
+func TestPinConfigIsReadOnlyWhenNotCached(t *testing.T) {
+	device, m := newMisbehaving()
+	for range 2 {
+		if config, err := device.PinConfig(); err != nil || config[5] != hidpin.MonitorPullUp(20) {
+			t.Fatalf("config %v, %v", config[5], err)
+		}
+	}
+	if len(m.featureReads) != 1 || m.featureReads[0] != hidpin.ReportIDPinConfig {
+		t.Errorf("feature reads %v", m.featureReads)
+	}
+}
+
+func TestRequestIDsStayWithin1To255AndChangeEveryWrite(t *testing.T) {
+	device, fake := newDevice()
+	for i := range 50 {
+		if _, err := device.UpdatePins(map[int]hidpin.PinSetting{5: hidpin.MonitorPullUp(uint8(i))}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	previous := uint8(0)
+	for _, write := range fake.FeatureWrites {
+		id := write[3] // report ID, result, result_gpio, request_id
+		if id == 0 || id == previous {
+			t.Fatalf("request_id %d after %d", id, previous)
+		}
+		previous = id
+	}
+}
+
+func TestUpdatePinsRejectsGPIOsOutOfRange(t *testing.T) {
+	device, fake := newDevice()
+	if _, err := device.UpdatePins(map[int]hidpin.PinSetting{30: hidpin.Unused()}); err == nil || err.Error() != "GPIO30 is out of range (0-29)" {
+		t.Errorf("got %v", err)
+	}
+	if len(fake.FeatureWrites) != 0 {
+		t.Error("something was written")
+	}
+}

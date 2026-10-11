@@ -3,14 +3,24 @@
 package hidpin
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/yukkeorg/hidpin/hidpin/internal/hidraw"
 )
 
-// FindDevices lists the connected hidpin devices.
+// The top-level collection of the hidpin interface (PROTOCOL.md 1).
+const (
+	usagePage = 0xFF00
+	usage     = 0x01
+)
+
+// FindDevices lists the connected hidpin devices, ordered by serial number. A HID interface whose
+// top-level collection is not Usage Page 0xFF00, Usage 0x01 is left out; when the report
+// descriptor cannot be read, opening the device checks the protocol version instead.
 func FindDevices() ([]Entry, error) {
 	vendorID, productID, err := USBIDs()
 	if err != nil {
@@ -22,6 +32,9 @@ func FindDevices() ([]Entry, error) {
 	}
 	entries := make([]Entry, 0, len(infos))
 	for _, info := range infos {
+		if info.UsagePage != 0 && (info.UsagePage != usagePage || info.Usage != usage) {
+			continue
+		}
 		entries = append(entries, Entry{
 			Path:         info.Path,
 			Serial:       info.Serial,
@@ -29,6 +42,9 @@ func FindDevices() ([]Entry, error) {
 			Product:      info.Product,
 		})
 	}
+	slices.SortFunc(entries, func(a, b Entry) int {
+		return cmp.Or(cmp.Compare(a.Serial, b.Serial), cmp.Compare(a.Path, b.Path))
+	})
 	return entries, nil
 }
 

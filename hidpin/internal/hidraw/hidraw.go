@@ -32,6 +32,10 @@ type Info struct {
 	Serial       string
 	Manufacturer string
 	Product      string
+	// UsagePage and Usage are those of the first application collection of the report
+	// descriptor; both are 0 when it cannot be read.
+	UsagePage uint16
+	Usage     uint16
 }
 
 func readText(path string) string {
@@ -50,6 +54,42 @@ func ueventFields(path string) map[string]string {
 		}
 	}
 	return fields
+}
+
+// TopLevelUsage returns the Usage Page and Usage of the first application collection of a report
+// descriptor, or 0 and 0 when it has none.
+func TopLevelUsage(descriptor []byte) (usagePage, usage uint16) {
+	for i := 0; i < len(descriptor); {
+		prefix := descriptor[i]
+		if prefix == 0xFE { // long item: the data size is in the next byte
+			if i+1 >= len(descriptor) {
+				break
+			}
+			i += 3 + int(descriptor[i+1])
+			continue
+		}
+		size := [4]int{0, 1, 2, 4}[prefix&0x03]
+		var data uint32
+		for k := 0; k < size && i+1+k < len(descriptor); k++ {
+			data |= uint32(descriptor[i+1+k]) << (8 * k)
+		}
+		i += 1 + size
+		switch prefix & 0xFC {
+		case 0x04: // Usage Page (global)
+			usagePage = uint16(data)
+		case 0x08: // Usage (local); a 4-byte usage carries its page in the upper half
+			if size == 4 {
+				usagePage, usage = uint16(data>>16), uint16(data)
+			} else {
+				usage = uint16(data)
+			}
+		case 0xA0: // Collection
+			if data == 0x01 { // Application
+				return usagePage, usage
+			}
+		}
+	}
+	return 0, 0
 }
 
 // Enumerate lists hidraw devices; a zero vendorID or productID matches any.
@@ -88,6 +128,8 @@ func Enumerate(vendorID, productID uint16) ([]Info, error) {
 		if serial == "" && usbDevice != "" {
 			serial = readText(filepath.Join(usbDevice, "serial"))
 		}
+		descriptor, _ := os.ReadFile(filepath.Join(device, "report_descriptor"))
+		usagePage, usage := TopLevelUsage(descriptor)
 		product := readText(filepath.Join(usbDevice, "product"))
 		if product == "" {
 			product = fields["HID_NAME"]
@@ -99,6 +141,8 @@ func Enumerate(vendorID, productID uint16) ([]Info, error) {
 			Serial:       serial,
 			Manufacturer: readText(filepath.Join(usbDevice, "manufacturer")),
 			Product:      product,
+			UsagePage:    usagePage,
+			Usage:        usage,
 		})
 	}
 	sort.Slice(infos, func(a, b int) bool { return infos[a].Path < infos[b].Path })
