@@ -41,7 +41,7 @@ hidpin output 7=high
 ```
 
 `--json` prints machine-readable output and `--serial` picks one of several boards. Unlike the
-Python CLI, options may come anywhere on the line, and `watch` keeps going when the board is
+Python CLI, options may come anywhere on the line. Like it, `watch` keeps going when the board is
 unplugged and plugged in again (it still fails at once when no board is connected). JSON is printed
 without spaces between items; with `--json`, messages about the connection go to stderr.
 

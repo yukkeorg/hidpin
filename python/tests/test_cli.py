@@ -1,14 +1,18 @@
 """Command line parsing and the commands themselves, against a fake device."""
 
 import argparse
+import json
+import threading
+import time
 from dataclasses import replace
 
 import pytest
 from fake_hid import FakeHandle
 
 from hidpin import cli, protocol
-from hidpin.device import Device
-from hidpin.protocol import PinMode, PinSetting, Reason
+from hidpin.testing import FakeBoard, FakeBus
+from hidpin.device import Device, DeviceEntry
+from hidpin.protocol import PinMode, PinSetting
 
 
 def test_parse_pin_spec_forms():
@@ -158,25 +162,131 @@ def test_output_command_warns_about_non_output_pins(fake_device, capsys):
     assert value == mask
 
 
-def test_watch_prints_events_then_stops(fake_device, capsys, monkeypatch):
-    device, handle = fake_device
-    levels = handle.config.monitored_mask & ~(1 << 5)
-    handle.queue_status(
-        handle.current_status(
-            seq=1,
-            reason=Reason.LEVEL_CHANGED,
-            levels=levels,
-            events=(protocol.EdgeEvent(gpio=5, level=False, age_us=20_000),),
-        )
-    )
+class RunningWatch:
+    """The watch command running on a thread against a simulated board, as a user would see it."""
 
-    def stop_after_queue(*args, **kwargs):
-        if not handle.reads:
-            raise KeyboardInterrupt
-        return Device.read_status(device, *args, **kwargs)
+    def __init__(self, capsys, argv):
+        self._capsys = capsys
+        self._stop = threading.Event()
+        self.out = ""
+        self.err = ""
+        self.code = None
+        cli.watch_stop = self._stop
+        self._thread = threading.Thread(target=self._run, args=(argv,))
+        self._thread.start()
 
-    monkeypatch.setattr(device, "read_status", stop_after_queue)
-    assert cli.main(["watch"]) == 0
-    out = capsys.readouterr().out
-    assert "GPIO5=OFF" in out.splitlines()[0]  # pull-up, still HIGH at the start
-    assert "GPIO5  ON  (LOW)" in out
+    def _run(self, argv):
+        self.code = cli.main(argv)
+
+    def _collect(self):
+        captured = self._capsys.readouterr()
+        self.out += captured.out
+        self.err += captured.err
+
+    def wait_for(self, text, stream="out"):
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            self._collect()
+            if text in getattr(self, stream):
+                return
+            time.sleep(0.005)
+        pytest.fail(f"{text!r} never appeared in {getattr(self, stream)!r}")
+
+    def stop(self):
+        self._stop.set()
+        self._thread.join(3)
+        assert not self._thread.is_alive(), "the watch command did not stop"
+        self._collect()
+        return self.code
+
+
+@pytest.fixture
+def board(monkeypatch):
+    board = FakeBoard("ABCD0123456789EF")
+    bus = FakeBus(board)
+    monkeypatch.setattr(cli, "watch_bus", bus)
+    monkeypatch.setattr(cli, "scan_interval", 0.005)
+    monkeypatch.setattr(cli, "watch_stop", None)
+    return bus, board
+
+
+def test_watch_prints_events_until_stopped(board, capsys):
+    _, fake = board
+    running = RunningWatch(capsys, ["watch"])
+    running.wait_for("GPIO5=OFF")
+    fake.set_input(5, False)
+    running.wait_for("GPIO5  ON  (LOW)")
+    assert running.stop() == 0
+    lines = running.out.strip().splitlines()
+    assert len(lines) == 2 and lines[0].startswith("GPIO0=OFF GPIO1=OFF")
+    assert lines[1] == "[  4.981000] GPIO5  ON  (LOW)"
+
+
+def test_watch_survives_unplugging(board, capsys):
+    bus, fake = board
+    running = RunningWatch(capsys, ["watch", "--active-high", "5"])
+    running.wait_for("GPIO5=ON")
+    bus.unplug(fake)
+    running.wait_for("the device was disconnected; waiting for it to come back")
+    fake.set_input(5, False)
+    bus.plug(fake)
+    running.wait_for("the device is connected again")
+    running.wait_for("[         ?] GPIO5  OFF (LOW)")
+    assert running.stop() == 0
+
+
+def test_watch_json_keeps_stdout_for_reports(board, capsys):
+    bus, fake = board
+    running = RunningWatch(capsys, ["--json", "watch"])
+    running.wait_for('"reason": ["HOST_REQUEST"]')
+    fake.set_input(5, False)
+    running.wait_for('"events": [{"gpio": 5, "level": false, "age_us": 20000, "start_us": 4981000}]')
+    bus.unplug(fake)
+    running.wait_for("the device was disconnected", stream="err")
+    running.stop()
+    for line in running.out.strip().splitlines():
+        json.loads(line)
+    assert '"on": {"0": false, "1": false' in running.out
+
+
+def test_watch_fails_without_device(board, capsys):
+    bus, fake = board
+    bus.unplug(fake)
+    assert cli.main(["watch"]) == 1
+    assert capsys.readouterr().err == "error: no hidpin device found\n"
+
+
+def test_watch_reports_configuration_changes_and_output_resets(board, capsys):
+    _, fake = board
+    running = RunningWatch(capsys, ["watch"])
+    running.wait_for("GPIO5=OFF")
+    fake.write_pin_config(fake.pin_config.with_pin(7, PinSetting.output(False)))  # another program
+    running.wait_for("the pin configuration changed")
+    fake.suspend()
+    running.wait_for("outputs returned to their initial level (USB disconnect or suspend)")
+    assert running.stop() == 0
+
+
+def test_watch_fails_when_the_device_cannot_be_opened(board, capsys):
+    _, fake = board
+    fake.set_open_error(PermissionError("permission denied"))
+    assert cli.main(["watch"]) == 1
+    assert capsys.readouterr().err == "error: permission denied\n"
+
+
+def test_watch_rejects_a_bad_gpio_list(board, capsys):
+    assert cli.main(["watch", "--active-low", "5,x"]) == 1
+    assert capsys.readouterr().err.startswith("error: bad GPIO list")
+
+
+def test_list_command(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "find_devices", lambda: [DeviceEntry(b"/dev/hidraw0", "ABCD0123456789EF", "yukke.org", "hidpin")])
+    assert cli.main(["list"]) == 0
+    assert capsys.readouterr().out == "ABCD0123456789EF  yukke.org hidpin\n"
+    assert cli.main(["--json", "list"]) == 0
+    assert json.loads(capsys.readouterr().out) == [
+        {"serial": "ABCD0123456789EF", "manufacturer": "yukke.org", "product": "hidpin"}
+    ]
+    monkeypatch.setattr(cli, "find_devices", lambda: [])
+    assert cli.main(["list"]) == 0
+    assert capsys.readouterr().out == "no hidpin device found\n"

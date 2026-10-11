@@ -5,17 +5,33 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
 import warnings
 
 from hidpin import protocol
-from hidpin.device import Device, HidpinError, PullDownUnreliableWarning, find_devices
-from hidpin.protocol import (
-    PinMode,
-    PinSetting,
-    Quirk,
-    Reason,
-    StatusFlags,
-    StatusReport,
+from hidpin.device import (
+    Bus,
+    Device,
+    HidpinError,
+    PullDownUnreliableWarning,
+    SystemBus,
+    choose_device,
+    find_devices,
+)
+from hidpin.protocol import PinMode, PinSetting, Quirk, Reason
+from hidpin.watcher import (
+    DEFAULT_SCAN_INTERVAL,
+    ConnectFailed,
+    Connected,
+    Disconnected,
+    InitialOnOff,
+    OnOffChange,
+    OutputResetCause,
+    OutputsReset,
+    PinConfigChanged,
+    StatusReceived,
+    WatcherClosed,
+    watch,
 )
 
 INPUT_MODES = {
@@ -163,7 +179,7 @@ def cmd_config_get(args) -> int:
                 )
             )
             return 0
-        message = protocol.RESULT_MESSAGES.get(report.result, "unknown")
+        message = protocol.result_message(report.result)
         print(f"result of the last write: {int(report.result)} ({message})")
         for gpio in available:
             print(f"  GPIO{gpio:<2} {report.config[gpio]}")
@@ -201,7 +217,14 @@ def cmd_output(args) -> int:
     return 0
 
 
-def report_json(device: Device, report: StatusReport, config) -> str:
+# The watch command reads these; tests point them at a simulated board and stop it.
+watch_bus: Bus | None = None
+scan_interval = DEFAULT_SCAN_INTERVAL
+watch_stop: threading.Event | None = None
+
+
+def status_json(received: StatusReceived, missed: int) -> str:
+    report = received.status
     return json.dumps(
         {
             "seq": report.seq,
@@ -211,7 +234,7 @@ def report_json(device: Device, report: StatusReport, config) -> str:
             "monitored": report.monitored,
             "outputs": report.outputs,
             "levels": report.levels,
-            "on": {str(gpio): state for gpio, state in device.on_off(report, config).items()},
+            "on": {str(gpio): on for gpio, on in sorted(received.on.items())},
             "events": [
                 {
                     "gpio": event.gpio,
@@ -221,58 +244,94 @@ def report_json(device: Device, report: StatusReport, config) -> str:
                 }
                 for event in report.events
             ],
-            "missed_reports": device.missed_reports,
+            "missed_reports": missed,
         }
     )
 
 
-def print_events(device: Device, report: StatusReport, config) -> None:
-    for event in report.events:
-        active_low = device.is_active_low(event.gpio, config)
-        state = "ON " if (event.level != active_low) else "OFF"
-        start = event.start_us(report.timestamp_us)
-        when = "         ?" if start is None else f"{start / 1_000_000:10.6f}"
-        print(f"[{when}] GPIO{event.gpio:<2} {state} ({'HIGH' if event.level else 'LOW'})")
+def on_off_name(on: bool) -> str:
+    return "ON" if on else "OFF"
+
+
+def print_change(change: OnOffChange) -> None:
+    when = "         ?" if change.device_us is None else f"{change.device_us / 1_000_000:10.6f}"
+    level = "HIGH" if change.level else "LOW"
+    print(f"[{when}] GPIO{change.gpio:<2} {on_off_name(change.on):<3} ({level})", flush=True)
 
 
 def cmd_watch(args) -> int:
-    with open_device(args) as device:
-        config = device.pin_config
+    active_low: dict[int, bool] = {}
+    try:
         for gpio in parse_gpio_list(args.active_low or ""):
-            device.set_polarity(gpio, True)
+            active_low[gpio] = True
         for gpio in parse_gpio_list(args.active_high or ""):
-            device.set_polarity(gpio, False)
+            active_low[gpio] = False
+    except ValueError as error:
+        raise HidpinError(f"bad GPIO list: {error}") from None
 
-        initial = device.request_status()
-        if args.json:
-            print(report_json(device, initial, config), flush=True)
-        else:
-            states = device.on_off(initial, config)
-            print(" ".join(f"GPIO{gpio}={'ON' if on else 'OFF'}" for gpio, on in sorted(states.items())), flush=True)
+    def note(message: str) -> None:
+        # With --json, stdout stays a stream of status reports.
+        print(message, file=sys.stderr if args.json else sys.stdout, flush=True)
 
-        missed = device.missed_reports
-        while True:
-            report = device.read_status(timeout_ms=1000)
-            if report is None:
-                continue
-            if args.json:
-                print(report_json(device, report, config), flush=True)
-            else:
-                if device.missed_reports != missed:
-                    lost = device.missed_reports - missed
-                    print(f"warning: missed {lost} status report(s)", file=sys.stderr)
-                    missed = device.missed_reports
-                if report.flags & StatusFlags.OVERFLOW:
+    # Like the other commands, fail at once when there is no device to watch.
+    bus = watch_bus if watch_bus is not None else SystemBus()
+    entry = choose_device(bus.devices(), args.serial)
+    try:
+        watcher = watch(entry.serial, active_low=active_low, scan_interval=scan_interval, bus=bus)
+    except ValueError as error:
+        raise HidpinError(str(error)) from None
+    stop = watch_stop if watch_stop is not None else threading.Event()
+
+    with watcher:
+        connected = False
+        missed = 0
+        while not stop.is_set():
+            try:
+                event = watcher.get(timeout=0.2)
+            except WatcherClosed:
+                break
+            if isinstance(event, Connected):
+                if event.reconnected:
+                    note("the device is connected again")
+                connected = True
+            elif isinstance(event, ConnectFailed):
+                if not connected:
+                    raise _as_hidpin_error(event.error)
+                print(f"warning: {event.error}", file=sys.stderr)
+            elif isinstance(event, Disconnected):
+                note("the device was disconnected; waiting for it to come back")
+            elif isinstance(event, StatusReceived):
+                missed += event.missed
+                if args.json:
+                    print(status_json(event, missed), flush=True)
+                    continue
+                if event.missed:
+                    print(f"warning: missed {event.missed} status report(s)", file=sys.stderr)
+                if event.status.overflow:
                     print("warning: the device dropped edge events (the history is incomplete)", file=sys.stderr)
-                if report.reason & Reason.CONFIG_CHANGED:
-                    config = device.get_pin_config().config
-                    print("the pin configuration changed", flush=True)
-                if report.reason & Reason.OUTPUT_RESET:
-                    print("outputs returned to their initial level (USB disconnect or suspend)", flush=True)
-                print_events(device, report, config)
-                if args.all and not report.events:
+                report = event.status
+                if args.all and not report.events and not report.reason & Reason.HOST_REQUEST:
                     print(f"seq={report.seq} reason={','.join(flag_names(report.reason))}", flush=True)
+            elif args.json:
+                continue
+            elif isinstance(event, InitialOnOff):
+                print(" ".join(f"GPIO{gpio}={on_off_name(on)}" for gpio, on in sorted(event.on.items())), flush=True)
+            elif isinstance(event, OnOffChange):
+                print_change(event)
+            elif isinstance(event, PinConfigChanged):
+                print("the pin configuration changed", flush=True)
+            elif isinstance(event, OutputsReset):
+                cause = event.cause.description
+                if event.cause == OutputResetCause.SUSPEND:
+                    cause = "USB disconnect or suspend"
+                print(f"outputs returned to their initial level ({cause})", flush=True)
+    if watcher.error is not None:
+        raise _as_hidpin_error(watcher.error)
     return 0
+
+
+def _as_hidpin_error(error: BaseException) -> HidpinError:
+    return error if isinstance(error, HidpinError) else HidpinError(str(error))
 
 
 def missing_command(parser: argparse.ArgumentParser, what: str):
