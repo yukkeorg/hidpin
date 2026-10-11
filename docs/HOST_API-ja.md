@@ -3,8 +3,8 @@
 [English](HOST_API.md) | **日本語**
 
 この文書は、hidpin の**ホストライブラリ**が言語を問わず提供する API を定める。
-新しい言語でホストライブラリを作るときに従う仕様であり、既存の Python 版（[`python/`](../python)）と
-Go 版（[`hidpin/`](../hidpin)）を照らし合わせる基準でもある。
+新しい言語でホストライブラリを作るときに従う仕様であり、既存の Python 版（[`python/`](../python)）、
+Go 版（[`hidpin/`](../hidpin)）、Rust 版（[`rust/`](../rust)）を照らし合わせる基準でもある。
 
 - 通信形式は [PROTOCOL-ja.md](PROTOCOL-ja.md) が定め、バイト列と**デバイス**の振る舞いについてはそちらが正である。
   この文書は、その上でホストライブラリが何を提供するかを定める。
@@ -18,10 +18,10 @@ Go 版（[`hidpin/`](../hidpin)）を照らし合わせる基準でもある。
 
 API は 2 つの層からなる。
 
-| 層 | 内容 | 要件 | Python | Go |
-|---|---|---|---|---|
-| **Core** | 定数、型、全レポートの符号化と復号、デバイスの検索と接続、`Device` の操作（3〜8 章） | ホストライブラリはすべて提供しなければならない（MUST） | あり | あり |
-| **Watch** | 常駐プログラム向けの監視役。デバイスを待ち、開き直し、ピン設定を目標に保ち、イベントを通知する（9 章） | 提供してもよい（MAY）。提供する場合は 9 章のとおりに振る舞わなければならない（MUST） | あり | あり |
+| 層 | 内容 | 要件 | Python | Go | Rust |
+|---|---|---|---|---|---|
+| **Core** | 定数、型、全レポートの符号化と復号、デバイスの検索と接続、`Device` の操作（3〜8 章） | ホストライブラリはすべて提供しなければならない（MUST） | あり | あり | あり |
+| **Watch** | 常駐プログラム向けの監視役。デバイスを待ち、開き直し、ピン設定を目標に保ち、イベントを通知する（9 章） | 提供してもよい（MAY）。提供する場合は 9 章のとおりに振る舞わなければならない（MUST） | あり | あり | あり |
 
 ホストライブラリは独自の関数を足してもよい（MAY。コマンドラインツールはこの文書の対象外）。
 ただし、ここで名前を挙げた操作の意味を変えてはならない（MUST NOT）。
@@ -40,6 +40,11 @@ API は 2 つの層からなる。
 - GPIO のビットマスクは符号なし 32 ビット整数で、ビット *n* が GPIO*n* を表す（PROTOCOL-ja.md 2）。
 - GPIO 番号は 0〜29 の整数である。
 - デバイス上の時刻は、電源投入からのマイクロ秒で、符号なし 64 ビット整数である。
+
+Rust 版は正規名をそのまま使うので、表ではエラー（8 章）と Watch の層（9 章）を除いて省く。
+正規名と違うのは次の点だけである。`Result` は Rust 自身の型を隠さないよう `ResultCode`、`default(available)` は `Default` トレイトと並ぶので `PinConfig::default_for(available)`、
+`monitor` に加えて `PinSetting::pull_up` / `pull_down` / `no_pull` がある。GPIO 番号は `u8`、「なし」は `Option` で表す。
+エラーは 1 つの列挙型 `hidpin::Error` の各要素である。使い方の例は [rust/README.md](../rust/README.md) とクレートのドキュメント（`cargo doc`）にある。
 
 ほとんどの節の終わりに、Python と Go の使い方の例を載せる。開いたデバイスが要る例では、それを `device` と呼ぶ（7.1）。
 Go の例は `error` を返す関数の本体であり、Watch の例ではさらに `context.Context` の `ctx` があるものとする。
@@ -710,17 +715,17 @@ fmt.Println(device.OnOff(status, config)) // map[0:false 1:false ...]
 
 ## 8. エラー
 
-| 正規名 | 起きるとき | データ | Python | Go |
-|---|---|---|---|---|
-| （基底） | ライブラリのすべてのエラー | — | `HidpinError` | —（普通の `error`） |
-| `DeviceNotFound` | 一致するデバイスがない | — | `DeviceNotFound` | `ErrNotFound` |
-| `SeveralDevices` | シリアル番号がなく、デバイスが複数ある | — | `SeveralDevices` | `ErrSeveralDevices` |
-| `ProtocolVersionError` | デバイスのプロトコル版が違う | `device_version` | `ProtocolVersionError` | `*ProtocolVersionError` |
-| `PinConfigRejected` | 手元またはデバイスでの検証に失敗した | `result`、`gpio`、`local` | `PinConfigRejected` | `*PinConfigRejectedError` |
-| `PinConfigConflict` | 間に別のプロセスがピン設定を書いた | `expected`、`seen` | `PinConfigConflict` | `*PinConfigConflictError` |
-| `UnsupportedPlatform` | この OS にバックエンドがない | — | —（`SystemBus()` が `HidpinError` を送出） | `ErrUnsupportedPlatform` |
-| `DeviceDisconnected` | Watch の操作が、切断中にデバイスを必要とした（9.2） | — | `DeviceDisconnected` | `ErrDisconnected` |
-| `WatcherClosed` | 監視役が止まったあとの Watch の操作 | — | `WatcherClosed` | `ErrWatcherClosed` |
+| 正規名 | 起きるとき | データ | Python | Go | Rust（`Error::`） |
+|---|---|---|---|---|---|
+| （基底） | ライブラリのすべてのエラー | — | `HidpinError` | —（普通の `error`） | `Error` |
+| `DeviceNotFound` | 一致するデバイスがない | — | `DeviceNotFound` | `ErrNotFound` | `DeviceNotFound` |
+| `SeveralDevices` | シリアル番号がなく、デバイスが複数ある | — | `SeveralDevices` | `ErrSeveralDevices` | `SeveralDevices` |
+| `ProtocolVersionError` | デバイスのプロトコル版が違う | `device_version` | `ProtocolVersionError` | `*ProtocolVersionError` | `ProtocolVersion` |
+| `PinConfigRejected` | 手元またはデバイスでの検証に失敗した | `result`、`gpio`、`local` | `PinConfigRejected` | `*PinConfigRejectedError` | `PinConfigRejected` |
+| `PinConfigConflict` | 間に別のプロセスがピン設定を書いた | `expected`、`seen` | `PinConfigConflict` | `*PinConfigConflictError` | `PinConfigConflict` |
+| `UnsupportedPlatform` | この OS にバックエンドがない | — | —（`SystemBus()` が `HidpinError` を送出） | `ErrUnsupportedPlatform` | `UnsupportedPlatform` |
+| `DeviceDisconnected` | Watch の操作が、切断中にデバイスを必要とした（9.2） | — | `DeviceDisconnected` | `ErrDisconnected` | `DeviceDisconnected` |
+| `WatcherClosed` | 監視役が止まったあとの Watch の操作 | — | `WatcherClosed` | `ErrWatcherClosed` | `WatcherClosed` |
 
 - `PinConfigRejected` のメッセージは、`local` なら `the pin configuration is invalid (nothing was sent to the device): <message>`、
   そうでなければ `the device rejected the pin configuration: <message>`。`<message>` は `result_message(result)` で、
@@ -774,12 +779,12 @@ default:
 
 イベントは、待ち受けて受け取る形、非同期で受け取る形、またはその両方で提供してよい（MAY）。どの形も、この章のとおりに振る舞う。
 
-| | Python | Go |
-|---|---|---|
-| 開始 | `watch(serial, target_pins=, active_low=, scan_interval=, bus=)` → `Watcher`。asyncio 向けは `async_watch(...)` → `AsyncWatcher` | `Watch(ctx, WatchOptions)` → `*Watcher` |
-| イベントを受け取る | `for event in watcher` または `watcher.get(timeout)`。asyncio では `async for event in watcher` または `await watcher.get()` | `<-w.Events()`（チャネル） |
-| 止める | `close()`、`with` / `async with` | `Close()`、または `ctx` の取り消し |
-| テスト用の模擬バス | `hidpin.testing.FakeBus`、`FakeBoard` | `hidpintest.Bus`、`Board` |
+| | Python | Go | Rust |
+|---|---|---|---|
+| 開始 | `watch(serial, target_pins=, active_low=, scan_interval=, bus=)` → `Watcher`。asyncio 向けは `async_watch(...)` → `AsyncWatcher` | `Watch(ctx, WatchOptions)` → `*Watcher` | `watch(WatchOptions)` → `Watcher` |
+| イベントを受け取る | `for event in watcher` または `watcher.get(timeout)`。asyncio では `async for event in watcher` または `await watcher.get()` | `<-w.Events()`（チャネル） | `for event in &watcher`、`recv()`、または `recv_timeout(timeout)` |
+| 止める | `close()`、`with` / `async with` | `Close()`、または `ctx` の取り消し | `close()`、または監視役を破棄する |
+| テスト用の模擬バス | `hidpin.testing.FakeBus`、`FakeBoard` | `hidpintest.Bus`、`Board` | `hidpin::testing::FakeBus`、`FakeBoard` |
 
 Python はどちらの形でも、デバイスを専用のスレッドで動かす。`AsyncWatcher` は、イベントループ上でイベントを待つだけである。`scan_interval` の単位は秒。
 
@@ -930,7 +935,7 @@ return w.Err()
 - `protocol/vectors.json` のすべての事例が往復しなければならない（MUST）。復号するとファイルのフィールドになり、そのフィールドを符号化するとファイルのペイロードになる。
   同じファイルを C のコアも検査するので、合格すればファームウェアとバイト単位で一致する。
 - `validate_pin_config_payload` は、すべての `pin_config_set` の事例で `result`、`result_gpio`、`request_id` を出さなければならない（MUST）。
-- ライブラリは、PROTOCOL-ja.md に従う偽のデバイスをテスト用に添えるべきである（SHOULD。Python はモジュール `hidpin.testing`、Go はパッケージ `hidpintest` で、どちらも抜き差しを再現する）。
+- ライブラリは、PROTOCOL-ja.md に従う偽のデバイスをテスト用に添えるべきである（SHOULD。Python はモジュール `hidpin.testing`、Go はパッケージ `hidpintest`、Rust はモジュール `hidpin::testing` で、いずれも抜き差しを再現する）。
   そうすれば、アプリを実機なしでテストできる。
 
 使い方:
@@ -972,4 +977,5 @@ defer device.Close()
 
 ## 11. 既存ライブラリの状況
 
-どちらのライブラリもこの文書に従い、両方の層を提供する。Python 版は Watch の層を、待ち受ける形と asyncio の形の両方で提供する。Go 版はチャネルで提供する。
+3 つのライブラリはいずれもこの文書に従い、両方の層を提供する。Watch の層は、Python 版が待ち受ける形と asyncio の形の両方、Go 版がチャネル、Rust 版が専用のスレッドから受け取る形で提供する。
+Python 版と Go 版には `hidpin` コマンドも付属する。Rust 版にはない。

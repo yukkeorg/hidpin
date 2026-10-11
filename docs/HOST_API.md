@@ -4,7 +4,8 @@
 
 This document specifies the API that every **host library** of hidpin provides, whatever its language.
 It is the specification to follow when a host library is written in a new language, and the reference
-the existing ones are checked against: Python ([`python/`](../python)) and Go ([`hidpin/`](../hidpin)).
+the existing ones are checked against: Python ([`python/`](../python)), Go ([`hidpin/`](../hidpin)) and Rust
+([`rust/`](../rust)).
 
 - The wire format is defined by [PROTOCOL.md](PROTOCOL.md), which is the authority on bytes and on the
   behaviour of the **device**. This document defines what a host library offers on top of it.
@@ -16,10 +17,10 @@ the existing ones are checked against: Python ([`python/`](../python)) and Go ([
 
 The API has two layers.
 
-| Layer | Contents | Requirement | Python | Go |
-|---|---|---|---|---|
-| **Core** | Constants, types, encoding and decoding of every report, finding and opening devices, the `Device` operations (sections 3–8) | A host library MUST provide all of it | Yes | Yes |
-| **Watch** | A long-running watcher that waits for the device, reopens it, keeps the pin configuration at a target and reports events (section 9) | MAY be provided; when provided, it MUST behave as section 9 says | Yes | Yes |
+| Layer | Contents | Requirement | Python | Go | Rust |
+|---|---|---|---|---|---|
+| **Core** | Constants, types, encoding and decoding of every report, finding and opening devices, the `Device` operations (sections 3–8) | A host library MUST provide all of it | Yes | Yes | Yes |
+| **Watch** | A long-running watcher that waits for the device, reopens it, keeps the pin configuration at a target and reports events (section 9) | MAY be provided; when provided, it MUST behave as section 9 says | Yes | Yes | Yes |
 
 A host library MAY add functions of its own (the command-line tools are outside this document), but it
 MUST NOT change the meaning of the operations named here.
@@ -40,6 +41,13 @@ every language. The tables in this document give the names the existing librarie
 - Bitmasks of GPIOs are unsigned 32-bit integers, bit *n* standing for GPIO*n* (PROTOCOL.md 2).
 - GPIO numbers are plain integers from 0 to 29.
 - Times on the device are microseconds since it powered on, as unsigned 64-bit integers.
+
+The Rust library uses the canonical names as they are, so the tables leave it out except for errors (8)
+and the Watch layer (9). Its few departures: `ResultCode` for `Result` (so as not to hide Rust's own),
+`PinConfig::default_for(available)` for `default(available)` (beside the `Default` trait),
+`PinSetting::pull_up` / `pull_down` / `no_pull` beside `monitor`, GPIO numbers as `u8`, and "none" as
+`Option`. Errors are the variants of one enum, `hidpin::Error`. Its examples are in
+[rust/README.md](../rust/README.md) and the crate documentation (`cargo doc`).
 
 Most sections end with usage examples in Python and Go. Where an example needs an open device, it is
 called `device` (section 7.1). The Go examples are the body of a function that returns `error`, and
@@ -724,17 +732,17 @@ fmt.Println(device.OnOff(status, config)) // map[0:false 1:false ...]
 
 ## 8. Errors
 
-| Canonical name | When | Data | Python | Go |
-|---|---|---|---|---|
-| (base) | Every error of the library | — | `HidpinError` | — (plain `error`) |
-| `DeviceNotFound` | No device matches | — | `DeviceNotFound` | `ErrNotFound` |
-| `SeveralDevices` | No serial number and several devices | — | `SeveralDevices` | `ErrSeveralDevices` |
-| `ProtocolVersionError` | The device speaks another protocol version | `device_version` | `ProtocolVersionError` | `*ProtocolVersionError` |
-| `PinConfigRejected` | Validation failed, locally or on the device | `result`, `gpio`, `local` | `PinConfigRejected` | `*PinConfigRejectedError` |
-| `PinConfigConflict` | Another process wrote the pin configuration in between | `expected`, `seen` | `PinConfigConflict` | `*PinConfigConflictError` |
-| `UnsupportedPlatform` | No backend on this operating system | — | — (`HidpinError` from `SystemBus()`) | `ErrUnsupportedPlatform` |
-| `DeviceDisconnected` | A Watch operation needs the device while it is disconnected (9.2) | — | `DeviceDisconnected` | `ErrDisconnected` |
-| `WatcherClosed` | A Watch operation after the watcher stopped | — | `WatcherClosed` | `ErrWatcherClosed` |
+| Canonical name | When | Data | Python | Go | Rust (`Error::`) |
+|---|---|---|---|---|---|
+| (base) | Every error of the library | — | `HidpinError` | — (plain `error`) | `Error` |
+| `DeviceNotFound` | No device matches | — | `DeviceNotFound` | `ErrNotFound` | `DeviceNotFound` |
+| `SeveralDevices` | No serial number and several devices | — | `SeveralDevices` | `ErrSeveralDevices` | `SeveralDevices` |
+| `ProtocolVersionError` | The device speaks another protocol version | `device_version` | `ProtocolVersionError` | `*ProtocolVersionError` | `ProtocolVersion` |
+| `PinConfigRejected` | Validation failed, locally or on the device | `result`, `gpio`, `local` | `PinConfigRejected` | `*PinConfigRejectedError` | `PinConfigRejected` |
+| `PinConfigConflict` | Another process wrote the pin configuration in between | `expected`, `seen` | `PinConfigConflict` | `*PinConfigConflictError` | `PinConfigConflict` |
+| `UnsupportedPlatform` | No backend on this operating system | — | — (`HidpinError` from `SystemBus()`) | `ErrUnsupportedPlatform` | `UnsupportedPlatform` |
+| `DeviceDisconnected` | A Watch operation needs the device while it is disconnected (9.2) | — | `DeviceDisconnected` | `ErrDisconnected` | `DeviceDisconnected` |
+| `WatcherClosed` | A Watch operation after the watcher stopped | — | `WatcherClosed` | `ErrWatcherClosed` | `WatcherClosed` |
 
 - The message of `PinConfigRejected` is `the pin configuration is invalid (nothing was sent to the
   device): <message>` when `local`, otherwise `the device rejected the pin configuration: <message>`,
@@ -789,12 +797,12 @@ connected yet. The decisions behind it are in ADR 0002.
 The events MAY be offered as a blocking stream, as an asynchronous one, or both; each form behaves as this
 section says.
 
-| | Python | Go |
-|---|---|---|
-| Start | `watch(serial, target_pins=, active_low=, scan_interval=, bus=)` → `Watcher`; `async_watch(...)` → `AsyncWatcher` for asyncio | `Watch(ctx, WatchOptions)` → `*Watcher` |
-| Take events | `for event in watcher`, or `watcher.get(timeout)`; `async for event in watcher`, or `await watcher.get()` | `<-w.Events()` (a channel) |
-| Stop | `close()`, `with` / `async with` | `Close()`, or cancelling `ctx` |
-| Simulated bus for tests | `hidpin.testing.FakeBus`, `FakeBoard` | `hidpintest.Bus`, `Board` |
+| | Python | Go | Rust |
+|---|---|---|---|
+| Start | `watch(serial, target_pins=, active_low=, scan_interval=, bus=)` → `Watcher`; `async_watch(...)` → `AsyncWatcher` for asyncio | `Watch(ctx, WatchOptions)` → `*Watcher` | `watch(WatchOptions)` → `Watcher` |
+| Take events | `for event in watcher`, or `watcher.get(timeout)`; `async for event in watcher`, or `await watcher.get()` | `<-w.Events()` (a channel) | `for event in &watcher`, `recv()`, or `recv_timeout(timeout)` |
+| Stop | `close()`, `with` / `async with` | `Close()`, or cancelling `ctx` | `close()`, or dropping the watcher |
+| Simulated bus for tests | `hidpin.testing.FakeBus`, `FakeBoard` | `hidpintest.Bus`, `Board` | `hidpin::testing::FakeBus`, `FakeBoard` |
 
 Python runs the device on a thread of its own in both forms; `AsyncWatcher` only waits for its events on
 the event loop. `scan_interval` is in seconds.
@@ -968,8 +976,8 @@ time (`has_time` = false).
 - `validate_pin_config_payload` MUST give the `result`, `result_gpio` and `request_id` of every
   `pin_config_set` case.
 - The library SHOULD come with a fake device for tests that follows PROTOCOL.md (Python: module
-  `hidpin.testing`, Go: package `hidpintest`; both simulate plugging in and out), so that applications can
-  be tested without hardware.
+  `hidpin.testing`, Go: package `hidpintest`, Rust: module `hidpin::testing`; all simulate plugging in and
+  out), so that applications can be tested without hardware.
 
 Usage:
 
@@ -1010,5 +1018,6 @@ defer device.Close()
 
 ## 11. State of the existing libraries
 
-Both libraries follow this document and provide both layers. Python offers the Watch layer in a blocking
-and an asyncio form; Go offers it as a channel.
+The three libraries follow this document and provide both layers. Python offers the Watch layer in a
+blocking and an asyncio form, Go as a channel, and Rust as a blocking receiver on a thread of its own.
+Python and Go also come with the `hidpin` command; Rust has none.

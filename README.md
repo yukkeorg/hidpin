@@ -103,7 +103,8 @@ To try it without installing, run `cd python && uv run hidpin list`.
 
 A Go version of the same command and a Go host library live in [`hidpin/`](hidpin/README.md)
 (`go install github.com/yukkeorg/hidpin/cmd/hidpin@latest`, `import "github.com/yukkeorg/hidpin/hidpin"`,
-Linux only).
+Linux only). A Rust host library lives in [`rust/`](rust/README.md) (crate `hidpin`, Linux only, no
+command).
 
 On Linux the library talks to `/dev/hidraw*` directly, so no extra library is needed. Windows
 and macOS need hidapi (`pip install './python[hidapi]'`). `HIDPIN_BACKEND=hidraw` or
@@ -184,6 +185,7 @@ firmware/test/        unit tests for the core, run on a PC
 python/               the Python host library and CLI (package hidpin)
 hidpin/               the Go host library (package hidpin; Linux, no cgo), see hidpin/README.md
 cmd/hidpin/           the Go CLI
+rust/                 the Rust host library (crate hidpin; Linux), see rust/README.md
 go.mod                the Go module github.com/yukkeorg/hidpin
 udev/                 the Linux udev rule
 ```
@@ -206,6 +208,7 @@ cmake --build build/core-tests && ctest --test-dir build/core-tests
 # tests for the host side
 cd python && uv run --group dev pytest    # Python
 go test ./...                             # Go, at the repository root
+cd rust && cargo test                     # Rust
 ```
 
 ## About the USB identifiers

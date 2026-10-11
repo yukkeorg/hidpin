@@ -95,7 +95,7 @@ pip install ./python          # 今の Python 環境に入れる
 
 同じコマンドの Go 版と、Go 用のホストライブラリが [`hidpin/`](hidpin/README.md) にあります
 （`go install github.com/yukkeorg/hidpin/cmd/hidpin@latest`、`import "github.com/yukkeorg/hidpin/hidpin"`、
-Linux 専用）。
+Linux 専用）。Rust 用のホストライブラリは [`rust/`](rust/README.md) にあります（クレート `hidpin`、Linux 専用、コマンドはありません）。
 
 Linux では `/dev/hidraw*` を直接使うので、追加のライブラリは要りません。
 Windows と macOS では hidapi が必要です（`pip install './python[hidapi]'`）。
@@ -173,6 +173,7 @@ firmware/test/        コアのユニットテスト（PC 上で実行）
 python/               Python のホストライブラリと CLI（パッケージ hidpin）
 hidpin/               Go のホストライブラリ（パッケージ hidpin、Linux 専用、cgo 不要）。hidpin/README.md を参照
 cmd/hidpin/           Go 版の CLI
+rust/                 Rust のホストライブラリ（クレート hidpin、Linux 専用）。rust/README.md を参照
 go.mod                Go のモジュール github.com/yukkeorg/hidpin
 udev/                 Linux の udev ルール
 ```
@@ -193,6 +194,7 @@ cmake --build build/core-tests && ctest --test-dir build/core-tests
 # ホスト側のテスト
 cd python && uv run --group dev pytest    # Python
 go test ./...                             # Go（リポジトリ直下で）
+cd rust && cargo test                     # Rust
 ```
 
 ## USB の識別番号について
