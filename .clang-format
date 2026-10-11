@@ -1,0 +1,15 @@
+# Formatting of the C code (firmware/). Editors that format on save through clang-format or
+# clangd (Zed, VS Code) read this file, so they keep the existing style instead of their default.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 120
+# Function bodies open on their own line; if, for, while, switch and else keep the brace on the line.
+BreakBeforeBraces: Linux
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortEnumsOnASingleLine: false
+SpacesBeforeTrailingComments: 2
+# One space before the backslash of a multi-line macro, as in test_util.h and main.c.
+AlignEscapedNewlines: DontAlign
