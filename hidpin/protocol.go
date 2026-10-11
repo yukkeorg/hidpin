@@ -1,6 +1,6 @@
 // Package hidpin talks to hidpin devices: RP2040 and RP2350A boards that report the state of their
-// GPIO pins over a vendor-defined USB HID interface. The wire format follows docs/PROTOCOL.md in the hidpin
-// repository; protocol/vectors.json holds the test vectors shared with the C, Rust and Python code.
+// GPIO pins over a vendor-defined USB HID interface. The wire format follows docs/PROTOCOL.md in the
+// hidpin repository; protocol/vectors.json holds the test vectors shared with the C and Python code.
 package hidpin
 
 import (
