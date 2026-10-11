@@ -4,23 +4,9 @@
 
 #include "pico/stdlib.h"
 
-// The LED chosen with HIDPIN_STATUS_LED_PIN at build time, otherwise the board's own: a plain LED,
-// or a WS2812 (NeoPixel) whose power may have to be switched on first.
-#if defined(HIDPIN_STATUS_LED_PIN)
-#define LED_PIN HIDPIN_STATUS_LED_PIN
-#define LED_IS_WS2812 HIDPIN_STATUS_LED_WS2812
-#elif defined(PICO_DEFAULT_LED_PIN)
-#define LED_PIN PICO_DEFAULT_LED_PIN
-#define LED_IS_WS2812 0
-#elif defined(PICO_DEFAULT_WS2812_PIN)
-#define LED_PIN PICO_DEFAULT_WS2812_PIN
-#define LED_IS_WS2812 1
-#if defined(PICO_DEFAULT_WS2812_POWER_PIN)
-#define LED_POWER_PIN PICO_DEFAULT_WS2812_POWER_PIN
-#endif
-#endif
+#include "board.h"
 
-#if defined(LED_PIN) && LED_IS_WS2812
+#if defined(HIDPIN_LED_PIN) && HIDPIN_LED_IS_WS2812
 #include "hardware/pio.h"
 #include "ws2812.pio.h"
 #endif
@@ -33,7 +19,7 @@
 static status_led_state_t led_state;
 static bool led_initialised = false;
 
-#if defined(LED_PIN) && LED_IS_WS2812
+#if defined(HIDPIN_LED_PIN) && HIDPIN_LED_IS_WS2812
 static PIO ws2812_pio = pio0;
 static uint ws2812_sm = 0;
 
@@ -45,30 +31,30 @@ static void ws2812_put(uint32_t grb)
 
 static void apply(status_led_state_t state)
 {
-#if !defined(LED_PIN)
+#if !defined(HIDPIN_LED_PIN)
     (void)state;
-#elif LED_IS_WS2812
+#elif HIDPIN_LED_IS_WS2812
     ws2812_put(state == STATUS_LED_POWER ? WS2812_GREEN : WS2812_BLUE);
 #else
-    gpio_put(LED_PIN, state == STATUS_LED_POWER);
+    gpio_put(HIDPIN_LED_PIN, state == STATUS_LED_POWER);
 #endif
 }
 
 void status_led_init(void)
 {
-#if !defined(LED_PIN)
+#if !defined(HIDPIN_LED_PIN)
     // No LED to drive.
-#elif LED_IS_WS2812
-#if defined(LED_POWER_PIN)
-    gpio_init(LED_POWER_PIN);
-    gpio_set_dir(LED_POWER_PIN, GPIO_OUT);
-    gpio_put(LED_POWER_PIN, true);
+#elif HIDPIN_LED_IS_WS2812
+#if defined(HIDPIN_LED_POWER_PIN)
+    gpio_init(HIDPIN_LED_POWER_PIN);
+    gpio_set_dir(HIDPIN_LED_POWER_PIN, GPIO_OUT);
+    gpio_put(HIDPIN_LED_POWER_PIN, true);
 #endif
     uint offset = pio_add_program(ws2812_pio, &ws2812_program);
-    ws2812_program_init(ws2812_pio, ws2812_sm, offset, LED_PIN, WS2812_FREQ_HZ, false);
+    ws2812_program_init(ws2812_pio, ws2812_sm, offset, HIDPIN_LED_PIN, WS2812_FREQ_HZ, false);
 #else
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
+    gpio_init(HIDPIN_LED_PIN);
+    gpio_set_dir(HIDPIN_LED_PIN, GPIO_OUT);
 #endif
     led_state = STATUS_LED_POWER;
     led_initialised = true;

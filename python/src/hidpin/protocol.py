@@ -24,6 +24,8 @@ GPIO_MASK = (1 << GPIO_COUNT) - 1
 EVENTS_PER_REPORT = 7
 EVENT_LEN = 5
 STATUS_EVENTS_OFFSET = 28
+SDK_BOARD_OFFSET = 17
+SDK_BOARD_LEN = 40
 DEFAULT_DEBOUNCE_MS = 20
 SATURATED_AGE_US = 0xFFFFFFFF
 RESULT_GPIO_NONE = 0xFF
@@ -85,6 +87,7 @@ RESULT_MESSAGES = {
 class Board(IntEnum):
     """Board type reported in the device information (PROTOCOL.md 5.1)."""
 
+    OTHER = 0  # a board without a preset; see DeviceInfo.sdk_board
     PICO = 1
     QTPY_RP2040 = 2
     PICO2 = 3
@@ -114,11 +117,17 @@ def mask_to_gpios(mask: int) -> list[int]:
     return [gpio for gpio in range(GPIO_COUNT) if mask >> gpio & 1]
 
 
-def board_name(board: int) -> str:
+def board_name(board: int, sdk_board: str = "") -> str:
+    """The product name of a board with a preset, otherwise its Pico SDK name when reported."""
     try:
         return BOARD_NAMES[Board(board)]
-    except ValueError:
-        return f"unknown board {board}"
+    except (ValueError, KeyError):
+        pass
+    if sdk_board:
+        return sdk_board
+    if board == Board.OTHER:
+        return "other board"
+    return f"unknown board {board}"
 
 
 def chip_name(chip: int) -> str:
@@ -230,10 +239,11 @@ class DeviceInfo:
     chip: int = 0
     chip_revision: int = 0
     quirks: int = 0
+    sdk_board: str = ""  # PICO_BOARD of the firmware build (PROTOCOL.md 5.4); empty when not reported
 
     @property
     def board_name(self) -> str:
-        return board_name(self.board)
+        return board_name(self.board, self.sdk_board)
 
     @property
     def chip_name(self) -> str:
@@ -260,6 +270,7 @@ def decode_device_info(payload: bytes) -> DeviceInfo:
     interval, available = struct.unpack_from("<HI", payload, 6)
     events_per_report, queue_size = struct.unpack_from("<BB", payload, 12)
     chip, chip_revision, quirks = struct.unpack_from("<BBB", payload, 14)
+    name = payload[SDK_BOARD_OFFSET : SDK_BOARD_OFFSET + SDK_BOARD_LEN].split(b"\0", 1)[0]
     return DeviceInfo(
         protocol_version=version,
         firmware=(major, minor, patch),
@@ -272,6 +283,7 @@ def decode_device_info(payload: bytes) -> DeviceInfo:
         chip=chip,
         chip_revision=chip_revision,
         quirks=quirks,
+        sdk_board=name.decode("ascii", errors="replace"),
     )
 
 
@@ -283,6 +295,10 @@ def encode_device_info(info: DeviceInfo) -> bytes:
     struct.pack_into("<HI", payload, 6, info.periodic_interval_ms, info.available)
     struct.pack_into("<BB", payload, 12, info.events_per_report, info.event_queue_size)
     struct.pack_into("<BBB", payload, 14, info.chip, info.chip_revision, info.quirks)
+    name = info.sdk_board.encode("ascii")
+    if len(name) > SDK_BOARD_LEN:
+        raise ValueError(f"sdk_board must be at most {SDK_BOARD_LEN} characters, got {len(name)}")
+    payload[SDK_BOARD_OFFSET : SDK_BOARD_OFFSET + len(name)] = name
     return bytes(payload)
 
 

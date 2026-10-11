@@ -295,6 +295,7 @@ func (a *app) cmdInfo(device *hidpin.Device) error {
 			Firmware           string   `json:"firmware"`
 			Board              uint8    `json:"board"`
 			BoardName          string   `json:"board_name"`
+			SDKBoard           string   `json:"sdk_board"`
 			Available          uint32   `json:"available"`
 			AvailableGPIOs     []int    `json:"available_gpios"`
 			PeriodicIntervalMS uint16   `json:"periodic_interval_ms"`
@@ -304,12 +305,15 @@ func (a *app) cmdInfo(device *hidpin.Device) error {
 			ChipName           string   `json:"chip_name"`
 			ChipRevision       uint8    `json:"chip_revision"`
 			Quirks             []string `json:"quirks"`
-		}{device.Serial, info.ProtocolVersion, info.FirmwareVersion(), uint8(info.Board), info.BoardName(),
+		}{device.Serial, info.ProtocolVersion, info.FirmwareVersion(), uint8(info.Board), info.BoardName(), info.SDKBoard,
 			info.Available, info.AvailableGPIOs(), info.PeriodicIntervalMS, info.EventsPerReport, info.EventQueueSize,
 			uint8(info.Chip), info.Chip.Name(), info.ChipRevision, quirkNames(info.Quirks)})
 	}
 	fmt.Fprintf(a.stdout, "serial number     : %s\n", device.Serial)
 	fmt.Fprintf(a.stdout, "board             : %s\n", info.BoardName())
+	if info.SDKBoard != "" {
+		fmt.Fprintf(a.stdout, "Pico SDK board    : %s\n", info.SDKBoard)
+	}
 	fmt.Fprintf(a.stdout, "firmware          : %s\n", info.FirmwareVersion())
 	fmt.Fprintf(a.stdout, "protocol version  : %d\n", info.ProtocolVersion)
 	fmt.Fprintf(a.stdout, "available GPIOs   : %d pins %s\n", len(info.AvailableGPIOs()), formatInts(info.AvailableGPIOs()))

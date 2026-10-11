@@ -1,12 +1,14 @@
-// Package hidpin talks to hidpin devices: RP2040 boards that report the state of their GPIO pins
-// over a vendor-defined USB HID interface. The wire format follows docs/PROTOCOL.md in the hidpin
+// Package hidpin talks to hidpin devices: RP2040 and RP2350A boards that report the state of their
+// GPIO pins over a vendor-defined USB HID interface. The wire format follows docs/PROTOCOL.md in the hidpin
 // repository; protocol/vectors.json holds the test vectors shared with the C, Rust and Python code.
 package hidpin
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 // Protocol constants. Payload lengths exclude the report ID byte.
@@ -32,6 +34,10 @@ const (
 	statusEventsOffset = 28
 	statusEventLen     = 5
 	pinConfigOffset    = 3
+	sdkBoardOffset     = 17
+
+	// SDKBoardLen is the most characters of DeviceInfo.SDKBoard (PROTOCOL.md 5.4).
+	SDKBoardLen = 40
 )
 
 // Reason is the set of reasons a status report was sent (PROTOCOL.md 4.1).
@@ -154,6 +160,7 @@ func (r Result) Message() string {
 type Board uint8
 
 const (
+	BoardOther      Board = 0 // a board without a preset; see DeviceInfo.SDKBoard
 	BoardPico       Board = 1
 	BoardQTPyRP2040 Board = 2
 	BoardPico2      Board = 3
@@ -162,6 +169,8 @@ const (
 // Name is the product name of the board.
 func (b Board) Name() string {
 	switch b {
+	case BoardOther:
+		return "other board"
 	case BoardPico:
 		return "Raspberry Pi Pico"
 	case BoardQTPyRP2040:
@@ -322,9 +331,21 @@ type DeviceInfo struct {
 	Chip               Chip
 	ChipRevision       uint8
 	Quirks             Quirks
+	// SDKBoard is the Pico SDK board (PICO_BOARD) the firmware was built for; empty when not reported.
+	SDKBoard string
 }
 
-func (i DeviceInfo) BoardName() string { return i.Board.Name() }
+// BoardName is the product name of a board with a preset, otherwise its Pico SDK board when reported.
+func (i DeviceInfo) BoardName() string {
+	switch i.Board {
+	case BoardPico, BoardQTPyRP2040, BoardPico2:
+		return i.Board.Name()
+	}
+	if i.SDKBoard != "" {
+		return i.SDKBoard
+	}
+	return i.Board.Name()
+}
 
 // PullDownUnreliable reports that the internal pull-downs cannot hold an input low (RP2350
 // erratum E9). Pins monitored with the pull-down can then keep reading HIGH when left open.
@@ -341,6 +362,10 @@ func DecodeDeviceInfo(p []byte) (DeviceInfo, error) {
 	if len(p) != PayloadLen {
 		return DeviceInfo{}, fmt.Errorf("device info payload must be %d bytes, got %d", PayloadLen, len(p))
 	}
+	name := p[sdkBoardOffset : sdkBoardOffset+SDKBoardLen]
+	if end := bytes.IndexByte(name, 0); end >= 0 {
+		name = name[:end]
+	}
 	return DeviceInfo{
 		ProtocolVersion:    p[0],
 		Firmware:           [3]uint8{p[1], p[2], p[3]},
@@ -353,10 +378,25 @@ func DecodeDeviceInfo(p []byte) (DeviceInfo, error) {
 		Chip:               Chip(p[14]),
 		ChipRevision:       p[15],
 		Quirks:             Quirks(p[16]),
+		SDKBoard:           asciiString(name),
 	}, nil
 }
 
-// Encode builds the payload of a device information report.
+// asciiString decodes ASCII text, turning each byte outside ASCII into U+FFFD.
+func asciiString(b []byte) string {
+	var sb strings.Builder
+	for _, c := range b {
+		if c < utf8.RuneSelf {
+			sb.WriteByte(c)
+		} else {
+			sb.WriteRune(utf8.RuneError)
+		}
+	}
+	return sb.String()
+}
+
+// Encode builds the payload of a device information report. An SDKBoard longer than SDKBoardLen
+// bytes is cut short.
 func (i DeviceInfo) Encode() []byte {
 	p := make([]byte, PayloadLen)
 	p[0] = i.ProtocolVersion
@@ -370,6 +410,7 @@ func (i DeviceInfo) Encode() []byte {
 	p[14] = byte(i.Chip)
 	p[15] = i.ChipRevision
 	p[16] = byte(i.Quirks)
+	copy(p[sdkBoardOffset:sdkBoardOffset+SDKBoardLen], i.SDKBoard)
 	return p
 }
 

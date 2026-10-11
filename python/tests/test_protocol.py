@@ -1,5 +1,7 @@
 """Checks the Python wire format against protocol/vectors.json (same data as the C tests)."""
 
+import dataclasses
+
 import pytest
 
 from hidpin import protocol
@@ -57,17 +59,37 @@ def test_device_info_vectors(vectors):
             case["chip_revision"],
             case["quirks"],
         ), case["name"]
+        assert info.sdk_board == case["sdk_board"], case["name"]
         assert protocol.encode_device_info(info) == payload, case["name"]
 
 
 def test_device_info_board_names(vectors):
     infos = [protocol.decode_device_info(bytes.fromhex(c["payload"])) for c in vectors["device_info"]]
-    assert [info.board_name for info in infos] == ["Raspberry Pi Pico", "Adafruit QT Py RP2040", "Raspberry Pi Pico 2"]
-    assert [info.chip_name for info in infos] == ["not reported", "RP2040", "RP2350A"]
-    assert [info.pull_down_unreliable for info in infos] == [False, False, True]
+    assert [info.board_name for info in infos] == [
+        "Raspberry Pi Pico",
+        "Adafruit QT Py RP2040",
+        "Raspberry Pi Pico 2",
+        "pico_w",
+        "a_board_name_of_forty_characters_exactly",
+    ]
+    assert [info.chip_name for info in infos] == ["not reported", "RP2040", "RP2350A", "RP2040", "RP2350A"]
+    assert [info.pull_down_unreliable for info in infos] == [False, False, True, False, False]
     assert infos[0].available_gpios == list(range(0, 23)) + [26, 27, 28]
     assert infos[1].available_gpios == [3, 4, 5, 6, 20, 22, 23, 24, 25, 26, 27, 28, 29]
 
+
+
+def test_board_name_without_a_preset():
+    assert protocol.board_name(0) == "other board"
+    assert protocol.board_name(9) == "unknown board 9"
+    assert protocol.board_name(9, "future_board") == "future_board"
+    assert protocol.board_name(1, "pico") == "Raspberry Pi Pico"
+
+
+def test_sdk_board_too_long(vectors):
+    info = protocol.decode_device_info(bytes.fromhex(vectors["device_info"][0]["payload"]))
+    with pytest.raises(ValueError):
+        protocol.encode_device_info(dataclasses.replace(info, sdk_board="x" * (protocol.SDK_BOARD_LEN + 1)))
 
 def test_pin_config_vectors(vectors):
     for case in vectors["pin_config"]:

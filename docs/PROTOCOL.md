@@ -113,14 +113,14 @@ A **status report** sent on Interrupt IN has at least one bit set.
 | 4 | `0x10` | `OUTPUT_RESET` | The **output pins** were returned to their **initial output levels** because USB was disconnected, suspended or reset (7.2) |
 | 7 | `0x80` | `HOST_REQUEST` | This is the reply to Get_Report(Input). When this bit is set, no other bit is |
 
-### 4.2 `flags`
+### 4.2 `flags` (status flags)
 
 | Bit | Name | Meaning |
 |---|---|---|
 | 0 | `OVERFLOW` | Since the previous **status report**, the **device** has dropped **edge events** it could not hold (4.5) |
 | 1 | `MORE_EVENTS` | Unsent **edge events** remain, and more **status reports** follow |
 
-### 4.3 `seq`
+### 4.3 `seq` (sequence number)
 
 - The **device** starts with `next_seq` = 0.
 - When a **status report** is successfully handed to Interrupt IN, its `seq` is `next_seq`, and `next_seq` is incremented (0 follows 65535).
@@ -175,7 +175,8 @@ The time the change started is `timestamp_us - age_us` (unless saturated).
 | 14 | `u8` | `chip` | The microcontroller (5.2). 0 means not reported |
 | 15 | `u8` | `chip_revision` | The revision of the chip as the Pico SDK reports it (5.2). 0 means not reported |
 | 16 | `u8` | `quirks` | Bit flags for known problems of the hardware (5.3) |
-| 17 | `u8`×46 | — | Reserved |
+| 17 | `u8`×40 | `sdk_board` | The Pico SDK board the firmware was built for (5.4) |
+| 57 | `u8`×6 | — | Reserved |
 
 - Contents sent with Set_Report are ignored.
 - If `protocol_version` differs from the version the **host** supports, the **host** stops communicating and reports an error.
@@ -184,13 +185,16 @@ The time the change started is `timestamp_us - age_us` (unless saturated).
 
 | Value | Board | `available` |
 |---|---|---|
+| 0 | Any other board (named in `sdk_board`, 5.4) | The GPIOs given when the firmware was built |
 | 1 | Raspberry Pi Pico | `0x1C7FFFFF` (GPIO0–22, 26–28) |
 | 2 | Adafruit QT Py RP2040 | `0x3FD00078` (GPIO3–6, 20, 22–29) |
 | 3 | Raspberry Pi Pico 2 | `0x1C7FFFFF` (GPIO0–22, 26–28) |
 
-These are the values of a standard build. A firmware built with its status LED on another GPIO
-(`HIDPIN_STATUS_LED_PIN`) leaves that GPIO out of `available`, so the **host** relies on `available`
-rather than on `board`.
+Values 1–3 are the boards with a preset, whose **available GPIOs** are known in advance; their
+`available` above is that of a standard build. The firmware can be built for any other RP2040 or RP2350A
+board of the Pico SDK: it then sends 0, with the GPIOs given at build time in `available`. A build can
+also change `available` for a board of 1–3, by giving its own list of GPIOs or by moving the status LED
+to another GPIO (`HIDPIN_STATUS_LED_PIN`), so the **host** relies on `available` rather than on `board`.
 
 ### 5.2 `chip` and `chip_revision`
 
@@ -212,6 +216,13 @@ current and stays at about 2.2 V; the internal pull-down is too weak to pull it 
 `mode` = 3 can keep reading HIGH. The internal pull-up works. The **device** still accepts `mode` = 3, and
 the **host** warns when it is used; the remedy is an external pull-down of 8.2 kΩ or less (with `mode` = 1),
 or wiring the input for the pull-up (`mode` = 2).
+
+### 5.4 `sdk_board`
+
+The name of the Pico SDK board (`PICO_BOARD`) the firmware was built for, such as `pico2` or `pico_w`.
+It is ASCII, padded with 0 bytes; a name of 40 characters fills the field with no terminating 0.
+The **host** shows it, and it names a board with `board` = 0. Firmware older than this field sends
+only 0 bytes, an empty name.
 
 ## 6. Pin configuration (ID `0x03`, Feature, 63 bytes)
 

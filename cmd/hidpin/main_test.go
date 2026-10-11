@@ -112,6 +112,23 @@ func TestInfoCommand(t *testing.T) {
 	}
 }
 
+func TestInfoShowsABoardWithoutAPreset(t *testing.T) {
+	fake := withFake(t)
+	fake.Info.Board = hidpin.BoardOther
+	fake.Info.SDKBoard = "pico_w"
+	code, out, _ := runCLI(context.Background(), "info")
+	if code != 0 || !strings.Contains(out, "board             : pico_w\n") ||
+		!strings.Contains(out, "Pico SDK board    : pico_w\n") {
+		t.Errorf("%d %q", code, out)
+	}
+	code, out, _ = runCLI(context.Background(), "--json", "info")
+	var payload map[string]any
+	if code != 0 || json.Unmarshal([]byte(out), &payload) != nil || payload["board"] != float64(0) ||
+		payload["board_name"] != "pico_w" || payload["sdk_board"] != "pico_w" {
+		t.Errorf("%d %q", code, out)
+	}
+}
+
 func asRP2350A2(fake *hidpintest.Fake) {
 	fake.Info.Board = hidpin.BoardPico2
 	fake.Info.Chip = hidpin.ChipRP2350A

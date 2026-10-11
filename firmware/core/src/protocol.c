@@ -4,6 +4,7 @@
 
 #define STATUS_EVENTS_OFFSET 28u
 #define STATUS_EVENT_LEN 5u
+#define DEVICE_INFO_SDK_BOARD_OFFSET 17u
 #define PIN_CONFIG_ENTRIES_OFFSET 3u
 
 const uint8_t hp_hid_report_descriptor[HP_HID_REPORT_DESCRIPTOR_LEN] = {
@@ -119,6 +120,12 @@ void hp_device_info_encode(const hp_device_info_t *info, uint8_t *out)
     out[14] = info->chip;
     out[15] = info->chip_revision;
     out[16] = info->quirks;
+    // ASCII, padded with NUL; a name of exactly HP_SDK_BOARD_LEN characters has no terminator.
+    if (info->sdk_board != NULL) {
+        for (uint8_t n = 0u; n < HP_SDK_BOARD_LEN && info->sdk_board[n] != '\0'; n++) {
+            out[DEVICE_INFO_SDK_BOARD_OFFSET + n] = (uint8_t)info->sdk_board[n];
+        }
+    }
 }
 
 void hp_pin_config_encode(const hp_pin_config_report_t *report, uint8_t *out)

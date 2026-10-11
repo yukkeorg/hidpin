@@ -42,6 +42,7 @@ static void test_device_info_vectors(void)
             .chip = v->chip,
             .chip_revision = v->chip_revision,
             .quirks = v->quirks,
+            .sdk_board = v->sdk_board,
         };
         uint8_t out[HP_REPORT_PAYLOAD_LEN];
         memset(out, 0xAA, sizeof(out));

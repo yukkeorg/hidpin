@@ -93,6 +93,20 @@ def test_info_shows_the_chip_and_known_problems(fake_device, capsys):
     assert "erratum E9" in out
 
 
+
+def test_info_shows_a_board_without_a_preset(fake_device, capsys):
+    import json
+
+    handle = fake_device[1]
+    handle.info = replace(handle.info, board=protocol.Board.OTHER, sdk_board="pico_w")
+    assert cli.main(["info"]) == 0
+    out = capsys.readouterr().out
+    assert "board             : pico_w" in out
+    assert "Pico SDK board    : pico_w" in out
+    assert cli.main(["--json", "info"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert (payload["board"], payload["board_name"], payload["sdk_board"]) == (0, "pico_w", "pico_w")
+
 def test_config_set_warns_about_pull_downs_on_rp2350_a2(fake_device, capsys):
     as_rp2350_a2(fake_device[1])
     assert cli.main(["config", "set", "5=pulldown:20"]) == 0

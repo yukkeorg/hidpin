@@ -117,6 +117,7 @@ def cmd_info(args) -> int:
                         "firmware": info.firmware_version,
                         "board": info.board,
                         "board_name": info.board_name,
+                        "sdk_board": info.sdk_board,
                         "available": info.available,
                         "available_gpios": info.available_gpios,
                         "periodic_interval_ms": info.periodic_interval_ms,
@@ -132,6 +133,8 @@ def cmd_info(args) -> int:
             return 0
         print(f"serial number     : {device.serial}")
         print(f"board             : {info.board_name}")
+        if info.sdk_board:
+            print(f"Pico SDK board    : {info.sdk_board}")
         print(f"firmware          : {info.firmware_version}")
         print(f"protocol version  : {info.protocol_version}")
         print(f"available GPIOs   : {len(info.available_gpios)} pins {info.available_gpios}")

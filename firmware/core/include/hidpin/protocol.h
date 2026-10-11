@@ -47,6 +47,8 @@
 #define HP_RESULT_BAD_OUTPUT_LEVEL 5u
 #define HP_RESULT_GPIO_NONE 0xFFu
 
+// Board in the device information (PROTOCOL.md 5.1). HP_BOARD_OTHER: see sdk_board.
+#define HP_BOARD_OTHER 0u
 #define HP_BOARD_PICO 1u
 #define HP_BOARD_QTPY_RP2040 2u
 #define HP_BOARD_PICO2 3u
@@ -57,6 +59,9 @@
 
 // Known problems of the hardware (PROTOCOL.md 5.3).
 #define HP_QUIRK_PULL_DOWN_UNRELIABLE 0x01u  // RP2350 erratum E9
+
+// Length of the Pico SDK board name in the device information (PROTOCOL.md 5.4).
+#define HP_SDK_BOARD_LEN 40u
 
 #define HP_HID_REPORT_DESCRIPTOR_LEN 47u
 
@@ -90,6 +95,7 @@ typedef struct {
     uint8_t chip;
     uint8_t chip_revision;
     uint8_t quirks;
+    const char *sdk_board;  // PICO_BOARD of the build; NULL sends an empty name
 } hp_device_info_t;
 
 typedef struct {

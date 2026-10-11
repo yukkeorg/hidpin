@@ -1,4 +1,5 @@
-// Board identity, available GPIOs and chip (PROTOCOL.md 5.1-5.3), selected by PICO_BOARD.
+// Board identity, available GPIOs, chip (PROTOCOL.md 5.1-5.4) and status LED. The board id, its SDK
+// name and the available GPIOs come from CMakeLists.txt; the chip and the LED from the board header.
 #ifndef HIDPIN_BOARD_H
 #define HIDPIN_BOARD_H
 
@@ -6,24 +7,37 @@
 
 #include "hidpin/protocol.h"
 
-#if defined(RASPBERRYPI_PICO)
-#define HIDPIN_BOARD_ID HP_BOARD_PICO
-#define HIDPIN_BOARD_AVAILABLE 0x1C7FFFFFu  // GPIO0-22, 26-28
-#elif defined(RASPBERRYPI_PICO2)
-#define HIDPIN_BOARD_ID HP_BOARD_PICO2
-#define HIDPIN_BOARD_AVAILABLE 0x1C7FFFFFu  // GPIO0-22, 26-28, as on the Pico
-#elif defined(ADAFRUIT_QTPY_RP2040)
-#define HIDPIN_BOARD_ID HP_BOARD_QTPY_RP2040
-#define HIDPIN_BOARD_AVAILABLE 0x3FD00078u  // GPIO3-6, 20, 22-29
-#else
-#error "Unsupported board: build with PICO_BOARD=pico, pico2 or adafruit_qtpy_rp2040"
+#if !defined(HIDPIN_BOARD_ID) || !defined(HIDPIN_SDK_BOARD) || !defined(HIDPIN_AVAILABLE)
+#error "HIDPIN_BOARD_ID, HIDPIN_SDK_BOARD and HIDPIN_AVAILABLE come from firmware/CMakeLists.txt"
 #endif
 
-// A status LED moved with HIDPIN_STATUS_LED_PIN takes its GPIO away from monitoring and output.
+// Protocol version 1 covers GPIO0-29, the GPIOs of the RP2040 and the RP2350A.
+#if PICO_RP2350 && !PICO_RP2350A
+#error "RP2350B boards (48 GPIOs) are not supported"
+#endif
+
+// The status LED: the one chosen with HIDPIN_STATUS_LED_PIN, otherwise the board's own, a plain LED
+// or a WS2812 (NeoPixel) whose power may have to be switched on first. No LED when the board has none.
 #if defined(HIDPIN_STATUS_LED_PIN)
-#define HIDPIN_AVAILABLE (HIDPIN_BOARD_AVAILABLE & ~(1u << HIDPIN_STATUS_LED_PIN))
-#else
-#define HIDPIN_AVAILABLE HIDPIN_BOARD_AVAILABLE
+#define HIDPIN_LED_PIN HIDPIN_STATUS_LED_PIN
+#define HIDPIN_LED_IS_WS2812 HIDPIN_STATUS_LED_WS2812
+#elif defined(PICO_DEFAULT_LED_PIN)
+#define HIDPIN_LED_PIN PICO_DEFAULT_LED_PIN
+#define HIDPIN_LED_IS_WS2812 0
+#elif defined(PICO_DEFAULT_WS2812_PIN)
+#define HIDPIN_LED_PIN PICO_DEFAULT_WS2812_PIN
+#define HIDPIN_LED_IS_WS2812 1
+#if defined(PICO_DEFAULT_WS2812_POWER_PIN)
+#define HIDPIN_LED_POWER_PIN PICO_DEFAULT_WS2812_POWER_PIN
+#endif
+#endif
+
+// The GPIOs the status LED uses cannot also be available GPIOs.
+#if defined(HIDPIN_LED_PIN) && HIDPIN_LED_PIN < 30 && (HIDPIN_AVAILABLE & (1u << HIDPIN_LED_PIN))
+#error "HIDPIN_GPIOS includes the GPIO of the board's status LED; leave it out or move the LED with HIDPIN_STATUS_LED_PIN"
+#endif
+#if defined(HIDPIN_LED_POWER_PIN) && HIDPIN_LED_POWER_PIN < 30 && (HIDPIN_AVAILABLE & (1u << HIDPIN_LED_POWER_PIN))
+#error "HIDPIN_GPIOS includes the GPIO that powers the board's status LED; leave it out"
 #endif
 
 // Fills in the chip, its revision and its known problems.

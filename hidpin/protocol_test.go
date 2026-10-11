@@ -54,6 +54,7 @@ type vectorFile struct {
 		Chip         number `json:"chip"`
 		ChipRevision number `json:"chip_revision"`
 		Quirks       number `json:"quirks"`
+		SDKBoard     string `json:"sdk_board"`
 		Payload      string `json:"payload"`
 	} `json:"device_info"`
 	PinConfig []struct {
@@ -158,7 +159,7 @@ func TestDeviceInfoVectors(t *testing.T) {
 		if info.ProtocolVersion != ProtocolVersion || info.Firmware != [3]uint8{uint8(c.FwMajor), uint8(c.FwMinor), uint8(c.FwPatch)} ||
 			info.Board != Board(c.Board) || info.Available != uint32(c.Available) || info.GPIOCount != GPIOCount ||
 			info.EventsPerReport != EventsPerReport || info.Chip != Chip(c.Chip) || info.ChipRevision != uint8(c.ChipRevision) ||
-			info.Quirks != Quirks(c.Quirks) {
+			info.Quirks != Quirks(c.Quirks) || info.SDKBoard != c.SDKBoard {
 			t.Errorf("%s: decoded %+v", c.Name, info)
 		}
 		if !bytes.Equal(info.Encode(), payload) {
@@ -168,14 +169,41 @@ func TestDeviceInfoVectors(t *testing.T) {
 		chips = append(chips, info.Chip.Name())
 		pullDowns = append(pullDowns, info.PullDownUnreliable())
 	}
-	if !reflect.DeepEqual(boards, []string{"Raspberry Pi Pico", "Adafruit QT Py RP2040", "Raspberry Pi Pico 2"}) {
+	wantBoards := []string{"Raspberry Pi Pico", "Adafruit QT Py RP2040", "Raspberry Pi Pico 2", "pico_w",
+		"a_board_name_of_forty_characters_exactly"}
+	if !reflect.DeepEqual(boards, wantBoards) {
 		t.Errorf("board names %v", boards)
 	}
-	if !reflect.DeepEqual(chips, []string{"not reported", "RP2040", "RP2350A"}) {
+	if !reflect.DeepEqual(chips, []string{"not reported", "RP2040", "RP2350A", "RP2040", "RP2350A"}) {
 		t.Errorf("chip names %v", chips)
 	}
-	if !reflect.DeepEqual(pullDowns, []bool{false, false, true}) {
+	if !reflect.DeepEqual(pullDowns, []bool{false, false, true, false, false}) {
 		t.Errorf("pull-down quirk %v", pullDowns)
+	}
+}
+
+func TestBoardNameWithoutAPreset(t *testing.T) {
+	cases := []struct {
+		info DeviceInfo
+		want string
+	}{
+		{DeviceInfo{Board: BoardOther}, "other board"},
+		{DeviceInfo{Board: 9}, "unknown board 9"},
+		{DeviceInfo{Board: 9, SDKBoard: "future_board"}, "future_board"},
+		{DeviceInfo{Board: BoardPico, SDKBoard: "pico"}, "Raspberry Pi Pico"},
+	}
+	for _, c := range cases {
+		if got := c.info.BoardName(); got != c.want {
+			t.Errorf("%+v: %q, want %q", c.info, got, c.want)
+		}
+	}
+}
+
+func TestSDKBoardIsASCII(t *testing.T) {
+	p := DeviceInfo{ProtocolVersion: ProtocolVersion, SDKBoard: "pico"}.Encode()
+	p[sdkBoardOffset+1] = 0xC3
+	if info, err := DecodeDeviceInfo(p); err != nil || info.SDKBoard != "p\uFFFDco" {
+		t.Errorf("decoded %q, %v", info.SDKBoard, err)
 	}
 }
 
