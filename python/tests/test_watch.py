@@ -349,12 +349,18 @@ def test_keeps_reading_only_as_fast_as_events_are_taken(start):
         board.set_input(5, i % 2 == 1)
     time.sleep(0.2)
     # The application took nothing meanwhile: the watcher stopped reading, and the board kept only
-    # as many reports as a hidraw queue holds. The next report shows the gap.
-    board.periodic()
+    # as many reports as a hidraw queue holds. Once the queue is read, the next report shows the gap.
     missed = 0
-    while (event := watcher.get(timeout=0.2)) is not None:
-        if isinstance(event, StatusReceived):
-            missed += event.missed
+
+    def take_all():
+        nonlocal missed
+        while (event := watcher.get(timeout=0.2)) is not None:
+            if isinstance(event, StatusReceived):
+                missed += event.missed
+
+    take_all()
+    board.periodic()
+    take_all()
     assert missed > 0
 
 
