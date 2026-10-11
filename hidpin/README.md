@@ -1,6 +1,6 @@
 # hidpin for Go
 
-A Go driver library and CLI for hidpin devices, the Go counterpart of the Python code in
+A Go host library and CLI for hidpin devices, the Go counterpart of the Python code in
 [`../python`](../python). It speaks the protocol in [docs/PROTOCOL.md](../docs/PROTOCOL.md) and is
 tested against the same [`protocol/vectors.json`](../protocol/vectors.json).
 
@@ -11,7 +11,7 @@ tested against the same [`protocol/vectors.json`](../protocol/vectors.json).
 
 | Package | Contents |
 |---|---|
-| `hidpin` | the driver library: reports, device access, pin configuration, polarity, and `Watch` for long-running programs |
+| `hidpin` | the host library: reports, device access, pin configuration, polarity, and `Watch` for long-running programs |
 | `hidpin/hidpintest` | a fake device and a simulated bus of boards, to test code that uses the library without hardware |
 | `cmd/hidpin` | the `hidpin` command (at the repository root) |
 | `hidpin/internal/hidraw` | the Linux hidraw backend (sysfs enumeration, HIDIOC* ioctls) |

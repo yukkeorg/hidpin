@@ -93,7 +93,7 @@ pip install ./python          # 今の Python 環境に入れる
 
 インストールせずに試す場合は、`cd python && uv run hidpin list` のように実行します。
 
-同じコマンドの Go 版と、Go 用のドライバライブラリが [`hidpin/`](hidpin/README.md) にあります
+同じコマンドの Go 版と、Go 用のホストライブラリが [`hidpin/`](hidpin/README.md) にあります
 （`go install github.com/yukkeorg/hidpin/cmd/hidpin@latest`、`import "github.com/yukkeorg/hidpin/hidpin"`、
 Linux 専用）。
 
@@ -152,8 +152,8 @@ protocol/vectors.json C と Python の両方のテストが参照するテスト
 firmware/core/        SDK に依存しないコア（レポート、チャタリング除去、イベント、エンジン）
 firmware/app/         Pico SDK + TinyUSB のファームウェア
 firmware/test/        コアのユニットテスト（PC 上で実行）
-python/               Python のライブラリと CLI（パッケージ hidpin）
-hidpin/               Go のライブラリ（パッケージ hidpin、Linux 専用、cgo 不要）。hidpin/README.md を参照
+python/               Python のホストライブラリと CLI（パッケージ hidpin）
+hidpin/               Go のホストライブラリ（パッケージ hidpin、Linux 専用、cgo 不要）。hidpin/README.md を参照
 cmd/hidpin/           Go 版の CLI
 go.mod                Go のモジュール github.com/yukkeorg/hidpin
 udev/                 Linux の udev ルール

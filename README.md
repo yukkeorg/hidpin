@@ -101,7 +101,7 @@ pip install ./python          # into the current Python environment
 
 To try it without installing, run `cd python && uv run hidpin list`.
 
-A Go version of the same command and a Go driver library live in [`hidpin/`](hidpin/README.md)
+A Go version of the same command and a Go host library live in [`hidpin/`](hidpin/README.md)
 (`go install github.com/yukkeorg/hidpin/cmd/hidpin@latest`, `import "github.com/yukkeorg/hidpin/hidpin"`,
 Linux only).
 
@@ -163,8 +163,8 @@ protocol/vectors.json test data both the C and the Python tests read
 firmware/core/        the core, free of SDK dependencies (reports, debouncing, events, engine)
 firmware/app/         the firmware built on the Pico SDK and TinyUSB
 firmware/test/        unit tests for the core, run on a PC
-python/               the Python library and CLI (package hidpin)
-hidpin/               the Go library (package hidpin; Linux, no cgo), see hidpin/README.md
+python/               the Python host library and CLI (package hidpin)
+hidpin/               the Go host library (package hidpin; Linux, no cgo), see hidpin/README.md
 cmd/hidpin/           the Go CLI
 go.mod                the Go module github.com/yukkeorg/hidpin
 udev/                 the Linux udev rule
